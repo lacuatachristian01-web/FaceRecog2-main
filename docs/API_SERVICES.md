@@ -12,7 +12,7 @@ Handles the Name/ID based authentication flow.
 ### 🏠 room.ts
 Manages attendance sessions (Rooms).
 - `createRoom(name, startTime, endTime)`: Initializes a new session with a unique code.
-- `joinRoom(code)`: Connects a student to a room.
+- `joinRoom(code)`: Connects a student to a room and updates `last_room_id` in their profile for seamless dashboard loading.
 - `getAdminRooms()`: Lists all rooms created by the current admin.
 
 ### 📝 attendance.ts

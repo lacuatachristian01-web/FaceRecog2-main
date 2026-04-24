@@ -1,4 +1,4 @@
-# 🚀 Facial Recognition Attendance System
+# 🚀 Facial Automated Attendance Management System
 
 A high-performance attendance management system built with **Next.js 15**, **Supabase**, and **Face-api.js**. Designed for educational and corporate environments to automate attendance tracking using secure facial recognition.
 
@@ -18,7 +18,7 @@ This system allows students to register their faces and record attendance by sim
 - **Non-Face Registered**: Admins do not require facial registration.
 
 #### 🎓 Student
-- **Secure Authentication**: Sign up and log in via email.
+- **Secure Authentication**: Sign up and log in via Name and ID (Auto-generated credentials).
 - **Face Registration**: Register facial biometrics after initial sign-up (mandatory for attendance).
 - **Easy Joining**: Join rooms created by admins using a simple code.
 - **Instant Attendance**: Use the facial recognition terminal to "Time In" or "Time Out".
@@ -28,12 +28,11 @@ This system allows students to register their faces and record attendance by sim
 
 ## 🛠 Tech Stack
 
-- **Frontend**: [Next.js 15](https://nextjs.org) (App Router, Server Components)
-- **Styling**: [Tailwind CSS 4](https://tailwindcss.com) + [Shadcn UI](https://ui.shadcn.com)
+- **Frontend**: [Next.js 15](https://nextjs.org) (App Router, Turbopack)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com) (Modern `@theme` engine) + [Shadcn UI](https://ui.shadcn.com)
 - **Backend/Auth**: [Supabase](https://supabase.com) (PostgreSQL, Auth, RLS)
-- **AI/ML**: [Face-api.js](https://github.com/justadudewhohacks/face-api.js) (TensorFlow.js based)
-- **State Management**: TanStack Query (React Query)
-- **Animations**: Framer Motion
+- **AI/ML**: [Face-api.js](https://github.com/justadudewhohacks/face-api.js) (SSD Mobilenet v1)
+- **Animations**: [Framer Motion 12](https://www.framer.com/motion/)
 
 ---
 

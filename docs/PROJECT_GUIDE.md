@@ -1,7 +1,7 @@
-# Facial Recognition Attendance System
+# Facial Automated Attendance Management System
 
 ## 🚀 Overview
-The **Facial Recognition Attendance System** is a high-performance, biometric-driven platform designed for modern classroom management. It utilizes advanced AI (face-api.js) to automate attendance logging through facial verification, replacing traditional manual lists with a secure and efficient digital solution.
+The **Facial Automated Attendance Management System** is a high-performance, biometric-driven platform designed for modern classroom management. It utilizes advanced AI (face-api.js) to automate attendance logging through facial verification, replacing traditional manual lists with a secure and efficient digital solution.
 
 ---
 
