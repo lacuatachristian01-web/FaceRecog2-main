@@ -58,11 +58,19 @@ export async function joinRoom(code: string) {
     });
 
   if (joinError) {
+    console.error('Join Error Detail:', joinError);
     if (joinError.code === '23505') {
       throw new Error('You are already in this room');
     }
-    throw joinError;
+    // Return the specific database error message
+    throw new Error(`Database Error: ${joinError.message} (Code: ${joinError.code})`);
   }
+
+  // 3. Update student's last_room_id in profile for easy dashboard loading
+  await supabase
+    .from('profiles')
+    .update({ last_room_id: room.id })
+    .eq('id', user.id);
 
   return { success: true, roomId: room.id };
 }

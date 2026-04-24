@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X, Check } from "lucide-react";
+import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X, Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export function RoomList() {
@@ -22,6 +22,11 @@ export function RoomList() {
   useEffect(() => {
     fetchRooms();
   }, []);
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success(`Code ${code} copied to clipboard!`);
+  };
 
   const fetchRooms = async () => {
     try {
@@ -148,7 +153,7 @@ export function RoomList() {
         ) : (
           rooms.map((room) => (
             <Card key={room.id} className="border-border bg-card hover:border-primary/50 transition-colors group relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-0 left-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -161,9 +166,20 @@ export function RoomList() {
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-xl font-bold text-foreground">{room.name}</CardTitle>
-                  <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-tighter">
-                    {room.code}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-tighter bg-primary/5 border-primary/20">
+                      {room.code}
+                    </Badge>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
+                      onClick={() => handleCopyCode(room.code)}
+                      title="Copy join code"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pb-4">

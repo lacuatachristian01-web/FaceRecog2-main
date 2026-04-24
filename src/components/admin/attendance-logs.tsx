@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ClipboardList, Clock, User, AlertCircle, Trash2, X, Plus, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoomList } from "./room-list";
+import { getAdminRooms } from "@/services/room";
 
 interface AttendanceLogsProps {
   roomId: string;
@@ -18,19 +19,39 @@ export function AttendanceLogs({ roomId }: AttendanceLogsProps) {
   const [logs, setLogs] = useState<any[]>([]);
   const [absentStudents, setAbsentStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminRooms, setAdminRooms] = useState<any[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(roomId);
 
   useEffect(() => {
-    if (roomId) {
-      fetchLogs();
-    }
-  }, [roomId]);
+    fetchAdminRooms();
+  }, []);
 
-  const fetchLogs = async () => {
+  useEffect(() => {
+    if (selectedRoomId) {
+      fetchLogs(selectedRoomId);
+    } else {
+      setLoading(false);
+    }
+  }, [selectedRoomId]);
+
+  const fetchAdminRooms = async () => {
+    try {
+      const rooms = await getAdminRooms();
+      setAdminRooms(rooms);
+      if (rooms.length > 0 && !selectedRoomId) {
+        setSelectedRoomId(rooms[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch admin rooms", err);
+    }
+  };
+
+  const fetchLogs = async (id: string) => {
     setLoading(true);
     try {
       const [logsData, absentData] = await Promise.all([
-        getAdminDashboard(roomId),
-        getAbsentStudents(roomId)
+        getAdminDashboard(id),
+        getAbsentStudents(id)
       ]);
       setLogs(logsData);
       setAbsentStudents(absentData);
@@ -46,37 +67,45 @@ export function AttendanceLogs({ roomId }: AttendanceLogsProps) {
     try {
       await deleteAttendanceRecord(id);
       toast.success("Log deleted");
-      fetchLogs();
+      fetchLogs(selectedRoomId);
     } catch (error: any) {
       toast.error("Failed to delete log");
     }
   };
 
-  const [showRooms, setShowRooms] = useState(false);
 
   if (loading) return <div className="text-center p-8">Loading attendance logs...</div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-semibold text-foreground">Attendance & Fines</h2>
-          <p className="text-sm text-muted-foreground">Monitor real-time logs and manage session rooms.</p>
+          <h2 className="text-2xl font-semibold text-foreground">Attendance Records</h2>
+          <p className="text-sm text-muted-foreground">Monitor real-time logs and student attendance history.</p>
         </div>
-        <Button 
-          variant={showRooms ? "secondary" : "default"} 
-          onClick={() => setShowRooms(!showRooms)}
-        >
-          {showRooms ? <X className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-          {showRooms ? "Close Room Manager" : "Manage Rooms"}
-        </Button>
-      </div>
+        
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <select 
+            value={selectedRoomId} 
+            onChange={(e) => setSelectedRoomId(e.target.value)}
+            className="bg-background border border-input h-10 px-3 rounded-md text-sm min-w-[200px]"
+          >
+            <option value="">Select a Room...</option>
+            {adminRooms.map(room => (
+              <option key={room.id} value={room.id}>{room.name} ({room.code})</option>
+            ))}
+          </select>
 
-      {showRooms && (
-        <div className="animate-in slide-in-from-top-2 duration-300">
-          <RoomList />
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => fetchLogs(selectedRoomId)}
+            title="Refresh logs"
+          >
+            <Clock className="h-4 w-4" />
+          </Button>
         </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-card border-border">

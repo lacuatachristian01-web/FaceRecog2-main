@@ -21,8 +21,8 @@ export function JoinRoom() {
       const result = await joinRoom(code);
       toast.success("Joined room successfully!");
       setCode("");
-      // Redirect or refresh
-      window.location.href = `/student/rooms/${result.roomId}`;
+      // Redirect to dashboard to start attendance
+      window.location.href = `/dashboard`;
     } catch (error: any) {
       toast.error(error.message || "Failed to join room");
     } finally {

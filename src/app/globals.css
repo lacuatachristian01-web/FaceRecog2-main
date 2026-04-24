@@ -49,6 +49,19 @@
 }
 
 @layer utilities {
+  .animate-shimmer {
+    animation: shimmer 3s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 0% 0%;
+    }
+    to {
+      background-position: 200% 0%;
+    }
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

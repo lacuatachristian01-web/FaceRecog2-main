@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import * as faceapi from "face-api.js";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Camera, Loader2, CheckCircle2, Clock, UserCheck } from "lucide-react";
+import { Camera, Loader2, CheckCircle2, Clock, UserCheck, AlertCircle, Scan, Sparkles, LogIn, ArrowRight } from "lucide-react";
 import { timeIn, timeOut, getTodayStatus, checkApproval } from "@/services/attendance";
 import { getFaceEmbedding } from "@/services/face";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LogIn } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { JoinRoom } from "../student/join-room";
 
 interface AttendanceTerminalProps {
@@ -20,6 +21,7 @@ interface AttendanceTerminalProps {
 
 export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTerminalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,6 +29,7 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
   const [actionMessage, setActionMessage] = useState("");
   const [todayStatus, setTodayStatus] = useState<any>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
 
   useEffect(() => {
     if (roomId && userId) {
@@ -36,8 +39,12 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
   }, [roomId, userId]);
 
   const checkUserApproval = async () => {
-    const approved = await checkApproval(roomId, userId);
-    setIsApproved(approved);
+    try {
+      const approved = await checkApproval(roomId, userId);
+      setIsApproved(approved);
+    } catch (err) {
+      console.error("Failed to check approval", err);
+    }
   };
 
   const fetchStatus = async () => {
@@ -49,6 +56,7 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
     }
   };
 
+  // Load models
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -66,25 +74,86 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
     loadModels();
   }, []);
 
+  // Face Detection Loop for Overlay
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isStreaming && isModelLoaded && videoRef.current && canvasRef.current) {
+      interval = setInterval(async () => {
+        if (!videoRef.current || !canvasRef.current || videoRef.current.readyState !== 4) return;
+        
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const detections = await faceapi.detectSingleFace(
+          video,
+          new faceapi.TinyFaceDetectorOptions()
+        ).withFaceLandmarks();
+
+        const displaySize = {
+          width: video.videoWidth,
+          height: video.videoHeight
+        };
+        
+        faceapi.matchDimensions(canvas, displaySize);
+
+        if (detections) {
+          setFaceDetected(true);
+          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#3b82f6";
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.4;
+            
+            const landmarks = resizedDetections.landmarks.positions;
+            landmarks.forEach(point => {
+              ctx.beginPath();
+              ctx.arc(point.x, point.y, 1, 0, 2 * Math.PI);
+              ctx.fillStyle = "#60a5fa";
+              ctx.fill();
+            });
+
+            ctx.beginPath();
+            ctx.moveTo(landmarks[0].x, landmarks[0].y);
+            for (let i = 1; i < 17; i++) ctx.lineTo(landmarks[i].x, landmarks[i].y);
+            ctx.stroke();
+          }
+        } else {
+          setFaceDetected(false);
+          const ctx = canvas.getContext("2d");
+          ctx?.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [isStreaming, isModelLoaded]);
+
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
   const startTerminal = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsStreaming(true);
-        setStatus('idle');
-      }
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 1280, height: 720, facingMode: "user" } 
+      });
+      setStream(mediaStream);
+      setIsStreaming(true);
+      setStatus('idle');
     } catch (err) {
       toast.error("Camera access denied");
     }
   };
+
+  useEffect(() => {
+    if (isStreaming && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [isStreaming, stream]);
 
   const processAttendance = async (type: 'in' | 'out') => {
     if (!videoRef.current || isProcessing) return;
 
     setIsProcessing(true);
     try {
-      // 1. Detect and Descriptor
       const detection = await faceapi
         .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
@@ -96,7 +165,6 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
         return;
       }
 
-      // 2. Verification
       const storedEmbedding = await getFaceEmbedding(userId);
       if (!storedEmbedding) {
         throw new Error("You haven't registered your face yet.");
@@ -107,28 +175,25 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
         new Float32Array(storedEmbedding as number[])
       );
 
-      // Threshold usually around 0.6 for recognition
-      if (distance > 0.5) {
-        throw new Error("Face verification failed. Please try again or re-register.");
+      if (distance > 0.55) {
+        throw new Error("Face verification failed. Please align your face properly.");
       }
 
-      // 3. Record Attendance
       if (type === 'in') {
         await timeIn(roomId, userId);
-        setActionMessage(`Time In Successful for ${userName}`);
+        setActionMessage(`Welcome, ${userName}!`);
       } else {
         await timeOut(roomId, userId);
-        setActionMessage(`Time Out Successful for ${userName}`);
+        setActionMessage(`Goodbye, ${userName}!`);
       }
 
       setStatus('success');
       toast.success(type === 'in' ? "Time In recorded" : "Time Out recorded");
       fetchStatus();
 
-      // Stop camera after success
       setTimeout(() => {
         stopCamera();
-      }, 3000);
+      }, 4000);
 
     } catch (err: any) {
       console.error(err);
@@ -147,146 +212,200 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
 
   if (!roomId) {
     return (
-      <div className="max-w-md mx-auto space-y-6">
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto">
+        <Card className="border-border bg-card shadow-2xl rounded-[2rem] overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b border-border">
+            <CardTitle className="flex items-center gap-3 uppercase italic font-black tracking-tighter">
               <LogIn className="h-5 w-5 text-primary" />
-              Join a Room First
+              Room Entry Required
             </CardTitle>
+            <CardDescription>You must join an active session before checking in.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-6">You need to join a session room using a 6-character code before you can take attendance.</p>
+          <CardContent className="p-6">
             <JoinRoom />
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <Card className="border-border bg-card overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b border-border">
-          <CardTitle className="text-xl flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5 text-primary" />
-              Attendance Terminal
+      <Card className="border-border bg-card shadow-2xl rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-border py-6 px-8">
+          <div className="flex items-center justify-between w-full">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl font-black tracking-tighter text-foreground flex items-center gap-3 uppercase italic">
+                <Scan className="h-6 w-6 text-primary" />
+                Live Terminal
+              </CardTitle>
+              <CardDescription className="font-medium">Secure facial authentication system</CardDescription>
             </div>
-            {todayStatus && (
-              <Badge variant={todayStatus.time_out ? "secondary" : "default"} className={todayStatus.time_out ? "" : "bg-green-500 hover:bg-green-600"}>
-                {todayStatus.time_out ? "Status: Session Ended" : "Status: Timed In"}
-              </Badge>
-            )}
-            {!todayStatus && <Badge variant="outline">Status: Not Timed In</Badge>}
-          </CardTitle>
+            <div className="flex flex-col items-end gap-2">
+              {todayStatus ? (
+                <Badge className={cn(
+                  "gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest",
+                  todayStatus.time_out ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                )}>
+                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", todayStatus.time_out ? "bg-muted-foreground" : "bg-emerald-500")} />
+                  {todayStatus.time_out ? "Session Completed" : "Currently Active"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                  Waiting for Check-in
+                </Badge>
+              )}
+            </div>
+          </div>
         </CardHeader>
+        
         <CardContent className="p-0">
-          <div className="relative aspect-video bg-black flex items-center justify-center">
+          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
             {isStreaming ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className="w-full h-full object-cover scale-x-[-1]"
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover scale-x-[-1]"
+                />
+                <canvas
+                  ref={canvasRef}
+                  className="absolute inset-0 w-full h-full pointer-events-none scale-x-[-1]"
+                />
+                
+                {/* Visual Guides */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className={cn(
+                    "w-[240px] h-[300px] border-2 rounded-[3rem] transition-all duration-500",
+                    faceDetected ? "border-primary scale-105 shadow-[0_0_40px_rgba(59,130,246,0.3)]" : "border-white/10 scale-100"
+                  )} />
+                </div>
+
+                {isProcessing && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 bg-background/40 backdrop-blur-md flex items-center justify-center z-20"
+                  >
+                    <div className="text-center">
+                      <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                      <p className="text-foreground font-black uppercase tracking-tighter italic text-xl">Verifying...</p>
+                    </div>
+                  </motion.div>
+                )}
+              </>
             ) : (
               <div className="text-center p-12">
-                <div className="bg-muted w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Camera className="h-10 w-10 text-muted-foreground" />
+                <div className="w-24 h-24 rounded-[2rem] bg-muted/20 border border-white/5 flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
+                  <Camera className="h-10 w-10 text-muted-foreground/40" />
                 </div>
                 
                 {isApproved === false ? (
-                  <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl max-w-sm mx-auto mb-4">
+                  <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-2xl max-w-sm mx-auto mb-4 backdrop-blur-md">
                     <div className="flex items-center gap-2 text-destructive mb-1 justify-center">
                       <AlertCircle className="h-4 w-4" />
-                      <span className="font-bold text-sm uppercase">Approval Pending</span>
+                      <span className="font-black text-xs uppercase tracking-widest italic">Awaiting Approval</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">The admin has not yet approved your request to join this room. Please wait for approval before taking attendance.</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">The room administrator has not approved your profile yet.</p>
                   </div>
                 ) : (
-                  <Button onClick={startTerminal} disabled={!isModelLoaded} className="bg-primary">
-                    {isModelLoaded ? "Activate Terminal" : "Loading Models..."}
+                  <Button 
+                    onClick={startTerminal} 
+                    disabled={!isModelLoaded} 
+                    className="bg-primary text-primary-foreground h-12 px-8 rounded-xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all"
+                  >
+                    {isModelLoaded ? "Start Authentication" : "Loading Neural Engine..."}
                   </Button>
                 )}
               </div>
             )}
 
-            {isProcessing && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                <div className="text-center">
-                  <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-2" />
-                  <p className="text-white font-medium">Verifying Face...</p>
-                </div>
-              </div>
-            )}
-
-            {status === 'success' && (
-              <div className="absolute inset-0 bg-primary/20 backdrop-blur-md flex items-center justify-center">
-                <div className="bg-card p-8 rounded-2xl shadow-2xl text-center scale-up-animation max-w-sm w-full mx-4">
-                  <CheckCircle2 className="h-16 w-16 text-primary mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold text-foreground mb-2">Attendance Recorded</h3>
-                  <p className="text-muted-foreground text-sm mb-4">{actionMessage}</p>
-                  
-                  {todayStatus && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Events:</span>
-                        <div className="flex gap-1">
-                          {todayStatus.events?.map((e: string) => (
-                            <Badge key={e} variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
-                              {e}
-                            </Badge>
-                          )) || <span className="text-foreground">Normal</span>}
+            <AnimatePresence>
+              {status === 'success' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  className="absolute inset-0 bg-primary/10 backdrop-blur-xl flex items-center justify-center z-30 p-6"
+                >
+                  <Card className="bg-card/95 border-primary/20 shadow-2xl rounded-[2.5rem] max-w-sm w-full text-center p-8 overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-shimmer" />
+                    <div className="mx-auto bg-primary/10 p-4 rounded-full w-fit mb-6">
+                      <CheckCircle2 className="h-12 w-12 text-primary" />
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tighter text-foreground mb-2 uppercase italic">{actionMessage}</h3>
+                    <p className="text-sm text-muted-foreground font-medium mb-6">Attendance successfully recorded in the blockchain.</p>
+                    
+                    {todayStatus && (
+                      <div className="space-y-3 pt-6 border-t border-border">
+                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          <span>Timeline Status</span>
+                          <div className="flex gap-1.5">
+                            {todayStatus.events?.length > 0 ? todayStatus.events.map((e: string) => (
+                              <Badge key={e} variant="outline" className="bg-destructive/5 text-destructive border-destructive/10 px-2 py-0 text-[9px]">
+                                {e}
+                              </Badge>
+                            )) : <Badge variant="outline" className="bg-emerald-500/5 text-emerald-500 border-emerald-500/10 px-2 py-0 text-[9px]">Punctual</Badge>}
+                          </div>
                         </div>
                       </div>
-                      {todayStatus.fines > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Fine Applied:</span>
-                          <span className="text-destructive font-bold">₱{todayStatus.fines}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+                    )}
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-center gap-4 p-6 border-t border-border">
+
+        <CardFooter className="p-8 border-t border-border bg-muted/5">
           {isStreaming && status !== 'success' && (
-            <>
+            <div className="flex w-full gap-4">
               {(!todayStatus) && (
                 <Button 
                   onClick={() => processAttendance('in')} 
-                  disabled={isProcessing}
+                  disabled={isProcessing || !faceDetected}
                   size="lg"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 h-16 text-lg"
+                  className={cn(
+                    "flex-1 h-16 rounded-2xl text-xl font-black uppercase italic tracking-tighter shadow-xl transition-all duration-300",
+                    faceDetected ? "bg-primary text-primary-foreground shadow-primary/20 hover:scale-[1.02]" : "bg-muted text-muted-foreground"
+                  )}
                 >
-                  <Clock className="mr-2 h-6 w-6" />
-                  Time In
+                  <ArrowRight className="mr-3 h-6 w-6" />
+                  Clock In
                 </Button>
               )}
               {(todayStatus && !todayStatus.time_out) && (
                 <Button 
                   onClick={() => processAttendance('out')} 
-                  disabled={isProcessing}
+                  disabled={isProcessing || !faceDetected}
                   variant="outline"
                   size="lg"
-                  className="border-border hover:bg-accent text-accent-foreground flex-1 h-16 text-lg"
+                  className={cn(
+                    "flex-1 h-16 rounded-2xl text-xl font-black uppercase italic tracking-tighter transition-all duration-300",
+                    faceDetected ? "border-primary text-primary hover:bg-primary/5" : "border-border text-muted-foreground"
+                  )}
                 >
-                  <Clock className="mr-2 h-6 w-6" />
-                  Time Out
+                  <Clock className="mr-3 h-6 w-6" />
+                  Clock Out
                 </Button>
               )}
               {todayStatus?.time_out && (
-                <div className="text-sm text-muted-foreground italic">You have completed your attendance for today.</div>
+                <div className="w-full text-center py-4 text-muted-foreground font-medium italic">
+                  Session duty completed for today.
+                </div>
               )}
-            </>
+            </div>
+          )}
+          {!isStreaming && (
+            <div className="w-full text-center">
+               <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Biometric Verification Mode Active</p>
+            </div>
           )}
         </CardFooter>
       </Card>
     </div>
   );
 }
+
