@@ -5,34 +5,46 @@ import { signInWithID, signUpWithID } from '@/services/auth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2, Check, Hash, GraduationCap, Briefcase } from 'lucide-react';
+import { 
+  Mail, 
+  Lock, 
+  User, 
+  Eye, 
+  EyeOff, 
+  ArrowRight, 
+  Loader2, 
+  Check, 
+  Hash, 
+  GraduationCap, 
+  Briefcase 
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [formKey, setFormKey] = useState(0);
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [courseYear, setCourseYear] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [windowWidth, setWindowWidth] = useState(1024);
   const [userRole, setUserRole] = useState<'admin' | 'student'>('student');
   const router = useRouter();
 
   useEffect(() => {
-    setWindowWidth(window.innerWidth);
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
     const saved = localStorage.getItem('df_auth_mode');
     if (saved) setMode(saved as 'login' | 'signup');
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const switchMode = (m: 'login' | 'signup') => {
     setMode(m);
     localStorage.setItem('df_auth_mode', m);
-    setFormKey(k => k + 1);
     setError('');
     setSuccess(false);
     setId('');
@@ -59,562 +71,305 @@ export default function AuthPage() {
         setSuccess(true);
         setTimeout(() => {
           toast.success('Account created!', { description: 'You can now sign in with your ID.' });
-        }, 800);
+          setMode('login');
+          setSuccess(false);
+        }, 1500);
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const isDesktop = windowWidth >= 900;
-
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0F', color: '#F0EEFF', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden selection:bg-primary/30">
       {/* Grid Background */}
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        pointerEvents: 'none',
-        zIndex: 0,
-        opacity: 0.5,
-        backgroundImage: `linear-gradient(rgba(108,71,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(108,71,255,0.025) 1px, transparent 1px)`,
-        backgroundSize: '48px 48px',
-      }} />
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-20 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]" />
 
-      {/* Glows */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
-        <div style={{
-          position: 'absolute',
-          top: '-10%',
-          right: '-8%',
-          width: 560,
-          height: 560,
-          borderRadius: '50%',
-          background: '#6C47FF',
-          opacity: 0.15,
-          filter: 'blur(110px)',
-          animation: 'float 9s ease-in-out infinite',
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: '-15%',
-          left: '-8%',
-          width: 480,
-          height: 480,
-          borderRadius: '50%',
-          background: '#6C47FF',
-          opacity: 0.08,
-          filter: 'blur(110px)',
-          animation: 'float 11s ease-in-out infinite reverse',
-        }} />
-        <div style={{
-          position: 'absolute',
-          top: '45%',
-          left: '38%',
-          width: 280,
-          height: 280,
-          borderRadius: '50%',
-          background: '#1E40AF',
-          opacity: 0.05,
-          filter: 'blur(77px)',
-          animation: 'float 13s ease-in-out infinite 3s',
-        }} />
+      {/* Decorative Glows */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <motion.div 
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.15, 0.2, 0.15],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-primary/20 blur-[100px]"
+        />
+        <motion.div 
+          animate={{
+            scale: [1, 1.1, 1],
+            opacity: [0.1, 0.15, 0.1],
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute -bottom-[10%] -left-[5%] w-[400px] h-[400px] rounded-full bg-primary/10 blur-[100px]"
+        />
       </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', position: 'relative', zIndex: 10, flexDirection: isDesktop ? 'row' : 'column' }}>
-        {/* Brand Panel - Desktop Only */}
-        {isDesktop && (
-          <div style={{
-            width: 400,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            padding: '52px 44px',
-            borderRight: '1px solid #2E2A4A',
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
-            {/* Tint */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              pointerEvents: 'none',
-              background: 'linear-gradient(145deg, rgba(108,71,255,0.05) 0%, transparent 55%)',
-            }} />
-
-            {/* Orbital Ring */}
-            <div style={{
-              position: 'absolute',
-              top: 100,
-              right: -50,
-              width: 180,
-              height: 180,
-              borderRadius: '50%',
-              border: '1px solid rgba(108,71,255,0.125)',
-              pointerEvents: 'none',
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#6C47FF',
-                marginTop: -3.5,
-                marginLeft: -3.5,
-                animation: 'orbit 5s linear infinite',
-                boxShadow: '0 0 8px #6C47FF',
-              }} />
-            </div>
-
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              {/* Logo */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 56 }}>
-                <div style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #6C47FF, #3B82F6)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  fontSize: 14,
-                  color: 'white',
-                  boxShadow: '0 0 18px rgba(108,71,255,0.333)',
-                }}>D</div>
-                <span style={{ fontSize: 18, fontWeight: 'bold', letterSpacing: -0.025, color: '#F0EEFF' }}>DannFlow</span>
-                <span style={{
-                  padding: '2px 7px',
-                  borderRadius: 5,
-                  background: 'rgba(108,71,255,0.125)',
-                  border: '1px solid rgba(108,71,255,0.25)',
-                  fontSize: 10,
-                  color: '#6C47FF',
-                  letterSpacing: 0.06,
-                }}>v2.0</span>
+      {/* Main Layout */}
+      <div className="flex-1 flex flex-col lg:flex-row relative z-10">
+        {/* Brand Side - Desktop Only */}
+        <div className="hidden lg:flex w-[450px] shrink-0 flex-col justify-between p-12 border-r border-border bg-card/30 backdrop-blur-sm relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
+          
+          <div className="relative z-10">
+            {/* Logo */}
+            <div className="flex items-center gap-3 mb-16">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center font-bold text-white shadow-lg shadow-primary/20">
+                F
               </div>
-
-              {/* Headline */}
-              <h1 style={{ fontSize: 32, fontWeight: 'bold', lineHeight: 1.18, marginBottom: 14, letterSpacing: -0.03 }}>
-                Ship your idea.
-                <br />
-                <span style={{
-                  background: 'linear-gradient(90deg, #6C47FF, #60A5FA, #6C47FF)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  animation: 'shimmer 3s linear infinite',
-                }}>Not boilerplate.</span>
-              </h1>
-
-              <p style={{ fontSize: 13.5, color: '#9490B5', lineHeight: 1.7, maxWidth: 290, marginBottom: 36 }}>
-                The AI-native Next.js boilerplate for builders who ship. Plug in your vision — we handle the rest.
-              </p>
-
-              {/* Features */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {['Next.js 15 + Supabase auth built-in', 'AI-native architecture & MCP ready', 'Deploy to Vercel in under 2 minutes', 'Checkpoint rollback system'].map((f, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                    <div style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 6,
-                      background: 'rgba(108,71,255,0.09)',
-                      border: '1px solid rgba(108,71,255,0.22)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#6C47FF',
-                      flexShrink: 0,
-                    }}>
-                      <Check size={11} />
-                    </div>
-                    <span style={{ fontSize: 13, color: '#C4C0E0', lineHeight: 1.4 }}>{f}</span>
-                  </div>
-                ))}
-              </div>
+              <span className="text-xl font-bold tracking-tight">Facial Automated Attendance</span>
             </div>
 
-            {/* Status Chip */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '13px 15px',
-              borderRadius: 10,
-              background: 'rgba(108,71,255,0.04)',
-              border: '1px solid rgba(108,71,255,0.133)',
-              position: 'relative',
-              zIndex: 1,
-            }}>
-              <div style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#22C55E',
-                flexShrink: 0,
-                boxShadow: '0 0 7px #22C55E',
-                animation: 'pulse-dot 2s ease-in-out infinite',
-              }} />
-              <span style={{ fontSize: 11, color: '#9490B5' }}>All systems operational</span>
-            </div>
-          </div>
-        )}
+            {/* Headline */}
+            <h1 className="text-4xl font-extrabold leading-tight tracking-tight mb-6">
+              Automated Attendance.
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-primary bg-[length:200%_auto] animate-shimmer">
+                Powered by AI.
+              </span>
+            </h1>
 
-        {/* Form Section */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: isDesktop ? '40px 44px' : '28px 20px',
-          position: 'relative',
-          zIndex: 10,
-        }}>
-          <div style={{ width: '100%', maxWidth: 400, animation: 'fadeUp 0.45s ease both' }}>
-            {/* Tabs */}
-            <div style={{
-              display: 'flex',
-              background: '#13131F',
-              borderRadius: 11,
-              padding: 3,
-              marginBottom: 32,
-              border: '1px solid #2E2A4A',
-              gap: 4,
-            }}>
-              {(['login', 'signup'] as const).map(m => (
-                <button
-                  key={m}
-                  onClick={() => switchMode(m)}
-                  style={{
-                    flex: 1,
-                    padding: '10px 0',
-                    background: mode === m ? '#6C47FF' : 'transparent',
-                    border: 'none',
-                    borderRadius: 8,
-                    cursor: 'pointer',
-                    color: mode === m ? '#fff' : '#9490B5',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    transition: 'all 0.2s',
-                    boxShadow: mode === m ? '0 2px 10px rgba(108,71,255,0.314)' : 'none',
-                  }}
+            <p className="text-muted-foreground leading-relaxed max-w-xs mb-10">
+              A high-performance facial recognition system built for schools and businesses.
+            </p>
+
+            {/* Features List */}
+            <div className="space-y-4">
+              {[
+                'Next.js 15 & Supabase Integration',
+                'Real-time Facial Recognition',
+                'Secure RLS Data Protection',
+                'Advanced Admin Dashboard'
+              ].map((feature, i) => (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 * i }}
+                  key={feature} 
+                  className="flex items-center gap-3"
                 >
-                  {m === 'login' ? 'Sign In' : 'Create Account'}
-                </button>
+                  <div className="w-5 h-5 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                    <Check size={12} />
+                  </div>
+                  <span className="text-sm text-muted-foreground/90">{feature}</span>
+                </motion.div>
               ))}
             </div>
-
-            {/* Heading */}
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: -0.5, color: '#F0EEFF', margin: 0 }}>
-                  Attendance System
-                </h1>
-                <p style={{ fontSize: 15, color: '#9490B5', margin: 0, lineHeight: 1.5 }}>
-                  Facial Recognition Attendance for Modern Classrooms
-                </p>
-            </div>
-
-            {/* Success State */}
-            {success ? (
-              <div style={{
-                padding: 28,
-                borderRadius: 12,
-                textAlign: 'center',
-                background: 'rgba(34,197,94,0.07)',
-                border: '1px solid rgba(34,197,94,0.22)',
-                animation: 'fadeUp 0.35s ease both',
-              }}>
-                <div style={{ fontSize: 28, marginBottom: 10 }}>✓</div>
-                <p style={{ fontWeight: 600, marginBottom: 5, color: '#F0EEFF' }}>
-                  {mode === 'login' ? 'Welcome back!' : 'Account created!'}
-                </p>
-                <p style={{ fontSize: 12, color: '#9490B5' }}>
-                  {mode === 'login' ? 'Redirecting to Mission Control...' : 'Check your email for confirmation.'}
-                </p>
-              </div>
-            ) : (
-              <form key={formKey} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                
-                {mode === 'signup' && (
-                  <div style={{ animation: 'slideIn 0.25s ease both' }}>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: 0.08, textTransform: 'uppercase', color: '#9490B5', marginBottom: 6 }}>
-                      Register as...
-                    </label>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => setUserRole('student')}
-                        style={{
-                          flex: 1,
-                          padding: '12px',
-                          background: userRole === 'student' ? 'rgba(108,71,255,0.15)' : 'rgba(19,19,31,0.8)',
-                          border: `1px solid ${userRole === 'student' ? '#6C47FF' : '#2E2A4A'}`,
-                          borderRadius: 12,
-                          color: userRole === 'student' ? '#F0EEFF' : '#9490B5',
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 8,
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <GraduationCap size={16} />
-                        Student
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setUserRole('admin')}
-                        style={{
-                          flex: 1,
-                          padding: '12px',
-                          background: userRole === 'admin' ? 'rgba(108,71,255,0.15)' : 'rgba(19,19,31,0.8)',
-                          border: `1px solid ${userRole === 'admin' ? '#6C47FF' : '#2E2A4A'}`,
-                          borderRadius: 12,
-                          color: userRole === 'admin' ? '#F0EEFF' : '#9490B5',
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 8,
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <Briefcase size={16} />
-                        Admin
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Full Name - Required for both */}
-                <div style={{ animation: 'slideIn 0.25s ease both' }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: 0.08, textTransform: 'uppercase', color: '#9490B5', marginBottom: 6 }}>
-                    Full Name
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <User size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#9490B5', pointerEvents: 'none' }} />
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder="Juan Dela Cruz"
-                      required
-                      style={{
-                        width: '100%',
-                        paddingLeft: 40,
-                        paddingRight: 14,
-                        paddingTop: 12,
-                        paddingBottom: 12,
-                        background: 'rgba(19,19,31,0.8)',
-                        border: '1px solid #2E2A4A',
-                        borderRadius: 9,
-                        color: '#F0EEFF',
-                        fontSize: 14,
-                        outline: 'none',
-                        transition: 'all 0.18s',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Identification (ID) - Required for both */}
-                <div style={{ animation: 'slideIn 0.25s ease both' }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: 0.08, textTransform: 'uppercase', color: '#9490B5', marginBottom: 6 }}>
-                    Identification (ID)
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Hash size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#9490B5', pointerEvents: 'none' }} />
-                    <input
-                      type="text"
-                      value={id}
-                      onChange={e => setId(e.target.value)}
-                      placeholder="e.g. 231-0726"
-                      required
-                      style={{
-                        width: '100%',
-                        paddingLeft: 40,
-                        paddingRight: 14,
-                        paddingTop: 12,
-                        paddingBottom: 12,
-                        background: 'rgba(19,19,31,0.8)',
-                        border: '1px solid #2E2A4A',
-                        borderRadius: 9,
-                        color: '#F0EEFF',
-                        fontSize: 14,
-                        outline: 'none',
-                        transition: 'all 0.18s',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Course & Year - Signup Only (Student only) */}
-                {mode === 'signup' && userRole === 'student' && (
-                  <div style={{ animation: 'slideIn 0.25s ease both' }}>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: 0.08, textTransform: 'uppercase', color: '#9490B5', marginBottom: 6 }}>
-                      Course & Year
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <GraduationCap size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#9490B5', pointerEvents: 'none' }} />
-                      <input
-                        type="text"
-                        value={courseYear}
-                        onChange={e => setCourseYear(e.target.value)}
-                        placeholder="BSCS 4A"
-                        required
-                        style={{
-                          width: '100%',
-                          paddingLeft: 40,
-                          paddingRight: 14,
-                          paddingTop: 12,
-                          paddingBottom: 12,
-                          background: 'rgba(19,19,31,0.8)',
-                          border: '1px solid #2E2A4A',
-                          borderRadius: 9,
-                          color: '#F0EEFF',
-                          fontSize: 14,
-                          outline: 'none',
-                          transition: 'all 0.18s',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {error && (
-                  <div style={{
-                    padding: '10px 13px',
-                    borderRadius: 8,
-                    background: 'rgba(239,68,68,0.07)',
-                    border: '1px solid rgba(239,68,68,0.22)',
-                    fontSize: 12,
-                    color: '#f87171',
-                    animation: 'fadeUp 0.3s ease both'
-                  }}>
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '13px 0',
-                    marginTop: 2,
-                    background: loading ? 'rgba(108,71,255,0.375)' : 'linear-gradient(135deg, #6C47FF, #3B82F6)',
-                    border: 'none',
-                    borderRadius: 10,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    boxShadow: loading ? 'none' : `0 4px 18px rgba(108,71,255,0.267), 0 0 0 1px rgba(255,255,255,0.06)`,
-                    transition: 'all 0.18s',
-                  }}
-                  onMouseEnter={e => { if (!loading) { (e.currentTarget as any).style.transform = 'translateY(-1px)'; (e.currentTarget as any).style.boxShadow = `0 6px 24px rgba(108,71,255,0.333), 0 0 0 1px rgba(255,255,255,0.1)`; } }}
-                  onMouseLeave={e => { (e.currentTarget as any).style.transform = 'translateY(0)'; (e.currentTarget as any).style.boxShadow = `0 4px 18px rgba(108,71,255,0.267), 0 0 0 1px rgba(255,255,255,0.06)`; }}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={16} style={{ animation: 'spin 0.75s linear infinite' }} />
-                      Processing…
-                    </>
-                  ) : (
-                    <>
-                      {mode === 'login' ? 'Sign In' : 'Create Account'}
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-
-                {mode === 'signup' && (
-                  <p style={{ fontSize: 11, color: '#5A5680', textAlign: 'center', lineHeight: 1.55 }}>
-                    By signing up you agree to the{' '}
-                    <Link href="#" style={{ color: '#6C47FF', textDecoration: 'none' }}>Terms</Link>{' '}and{' '}
-                    <Link href="#" style={{ color: '#6C47FF', textDecoration: 'none' }}>Privacy Policy</Link>.
-                  </p>
-                )}
-              </form>
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0' }}>
-              <div style={{ flex: 1, height: 1, background: '#2E2A4A' }} />
-              <span style={{ fontSize: 10, color: '#5A5680' }}>OR</span>
-              <div style={{ flex: 1, height: 1, background: '#2E2A4A' }} />
-            </div>
-
-            <button type="button" style={{
-              width: '100%',
-              padding: '12px 0',
-              background: '#13131F',
-              border: '1px solid #2E2A4A',
-              borderRadius: 10,
-              color: '#F0EEFF',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 9,
-              transition: 'all 0.18s',
-            }} onMouseEnter={e => { (e.currentTarget as any).style.borderColor = '#4A4670'; (e.currentTarget as any).style.background = '#1A1A2E'; }} onMouseLeave={e => { (e.currentTarget as any).style.borderColor = '#2E2A4A'; (e.currentTarget as any).style.background = '#13131F'; }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
-              Continue with GitHub
-            </button>
           </div>
+
+          {/* System Status */}
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/50 border border-border/50 relative z-10">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" />
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">All Systems Live</span>
+          </div>
+        </div>
+
+        {/* Form Side */}
+        <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-[420px]"
+          >
+            <div className="mb-8 space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">
+                {mode === 'login' ? 'Welcome Back' : 'Join our Community'}
+              </h2>
+              <p className="text-muted-foreground">
+                {mode === 'login' 
+                  ? 'Sign in to continue your attendance tracking.' 
+                  : 'We\'re excited to have you join our attendance system!'}
+              </p>
+            </div>
+
+            <Tabs value={mode} onValueChange={(v) => switchMode(v as any)} className="w-full mb-8">
+              <TabsList className="w-full grid grid-cols-2 h-11">
+                <TabsTrigger value="login" className="text-sm font-semibold">Login</TabsTrigger>
+                <TabsTrigger value="signup" className="text-sm font-semibold">Sign Up</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <AnimatePresence mode="wait">
+              {success ? (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="p-8 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-center space-y-4"
+                >
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mx-auto">
+                    <Check size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground">Success!</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {mode === 'login' ? 'Glad to see you again! Taking you to your dashboard...' : 'Your account is ready! You can now sign in.'}
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.form
+                  key={mode}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  onSubmit={handleSubmit}
+                  className="space-y-5"
+                >
+                  {mode === 'signup' && (
+                    <div className="space-y-2.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                        I am a...
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button
+                          type="button"
+                          variant={userRole === 'student' ? 'default' : 'outline'}
+                          onClick={() => setUserRole('student')}
+                          className="h-12 gap-2 rounded-xl"
+                        >
+                          <GraduationCap size={18} />
+                          Student
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={userRole === 'admin' ? 'default' : 'outline'}
+                          onClick={() => setUserRole('admin')}
+                          className="h-12 gap-2 rounded-xl"
+                        >
+                          <Briefcase size={18} />
+                          Admin
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                        Full Name
+                      </label>
+                      <div className="relative group">
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                        <Input
+                          placeholder="Juan Dela Cruz"
+                          className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                        ID Number
+                      </label>
+                      <div className="relative group">
+                        <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                        <Input
+                          placeholder="e.g. 231-0726"
+                          className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                          value={id}
+                          onChange={(e) => setId(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {mode === 'signup' && userRole === 'student' && (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                          Course & Year
+                        </label>
+                        <div className="relative group">
+                          <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                          <Input
+                            placeholder="BSCS 4A"
+                            className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
+                            value={courseYear}
+                            onChange={(e) => setCourseYear(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {error && (
+                    <p className="text-[13px] text-destructive bg-destructive/5 border border-destructive/10 px-4 py-2.5 rounded-lg">
+                      {error}
+                    </p>
+                  )}
+
+                  <Button 
+                    type="submit" 
+                    className="w-full h-12 text-base font-bold rounded-xl shadow-lg shadow-primary/20"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        {mode === 'login' ? 'Sign In' : 'Create Account'}
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+
+            <div className="mt-8 relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/50"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em] font-bold">
+                <span className="bg-background px-3 text-muted-foreground/50">Developer Access</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full mt-6 h-11 rounded-xl gap-2 text-muted-foreground hover:text-foreground border-border/50 bg-card/30"
+              asChild
+            >
+              <Link href="https://github.com/Danncode10">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                Continue with GitHub
+              </Link>
+            </Button>
+          </motion.div>
         </div>
       </div>
 
       {/* Footer */}
-      <div style={{
-        position: 'relative',
-        zIndex: 10,
-        borderTop: '1px solid #2E2A4A',
-        padding: '10px 44px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 8,
-        background: 'rgba(10,10,15,0.75)',
-        backdropFilter: 'blur(10px)',
-      }}>
-        <span style={{ fontSize: 11, color: '#5A5680' }}>© 2026 Attendance System</span>
-        <div style={{ display: 'flex', gap: 18 }}>
-          {['Privacy', 'Terms', 'Docs'].map(l => (
-            <Link key={l} href="#" style={{ fontSize: 11, color: '#5A5680', textDecoration: 'none', transition: 'color 0.2s', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget as any).style.color = '#6C47FF'} onMouseLeave={e => (e.currentTarget as any).style.color = '#5A5680'}>{l}</Link>
+      <footer className="relative z-10 border-t border-border/40 bg-card/30 backdrop-blur-md px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p className="text-[11px] text-muted-foreground/60 tracking-wide font-medium">
+          © 2026 FACE RECOGNITION SYSTEM • BUILT FOR SPEED
+        </p>
+        <div className="flex items-center gap-6">
+          {['Privacy', 'Terms', 'Docs'].map((item) => (
+            <Link 
+              key={item} 
+              href="#" 
+              className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors uppercase tracking-widest font-bold"
+            >
+              {item}
+            </Link>
           ))}
         </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes float { 0%, 100% { transform: translateY(0px) scale(1); } 50% { transform: translateY(-24px) scale(1.04); } }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-        @keyframes orbit { from { transform: rotate(0deg) translateX(72px) rotate(0deg); } to { transform: rotate(360deg) translateX(72px) rotate(-360deg); } }
-        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      </footer>
     </div>
   );
 }

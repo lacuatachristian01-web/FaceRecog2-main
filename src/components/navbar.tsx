@@ -42,25 +42,25 @@ export function Navbar({ user }: { user: any }) {
 
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 w-full border-b border-border/20 bg-background/60 backdrop-blur-2xl transition-all">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <a href="/#home" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">D</span>
+        <a href="/#home" className="flex items-center gap-3 group transition-all">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-[0_0_15px_rgba(108,71,255,0.3)] group-hover:scale-110 transition-transform">
+            <span className="text-base font-black text-primary-foreground">D</span>
           </div>
-          <span className="text-lg font-bold tracking-tight text-foreground">
+          <span className="text-xl font-black tracking-tight text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             {siteConfig.name}
           </span>
         </a>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-2 px-1.5 py-1.5 rounded-2xl bg-secondary/30 border border-border/20 backdrop-blur-sm">
           {navLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="px-4 py-2 text-sm font-medium text-muted-foreground rounded-lg hover:text-foreground hover:bg-secondary transition-colors"
+              className="px-5 py-2 text-sm font-bold text-muted-foreground rounded-xl hover:text-foreground hover:bg-secondary/50 transition-all"
             >
               {link.label}
             </a>
@@ -68,29 +68,28 @@ export function Navbar({ user }: { user: any }) {
         </nav>
 
         {/* CTA */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-4">
           {user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-3 bg-card hover:bg-accent active:scale-[0.98] transition-all rounded-full px-1.5 py-1.5 md:pl-1.5 md:pr-4 border border-border shadow-sm group cursor-pointer">
-                {/* ── Avatar ── */}
-                <Avatar className="h-7 w-7 md:h-8 md:w-8 border border-border shadow-sm transition-transform group-hover:scale-105">
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground font-black text-[10px] md:text-xs">
+              <DropdownMenuTrigger className="flex items-center gap-3 bg-secondary/30 hover:bg-secondary/50 active:scale-[0.98] transition-all rounded-2xl px-2 py-2 pr-5 border border-border/20 shadow-xl group cursor-pointer">
+                <Avatar className="h-9 w-9 border-2 border-primary/20 shadow-lg transition-transform group-hover:rotate-6">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground font-black text-xs">
                     {user.email?.[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
 
-                {/* ── Identity (Hidden on Mobile) ── */}
-                <div className="hidden md:flex items-center gap-2.5 max-w-[150px]">
-                  <span className="text-sm font-medium text-foreground group-hover:text-foreground/80 transition-colors truncate tracking-tight">
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate tracking-tight">
                     {user.email?.split("@")[0]}
                   </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Account</span>
                 </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors ml-2" />
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent className="w-64 mt-3 rounded-xl shadow-xl">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col space-y-1 py-1">
+              <DropdownMenuContent className="w-64 mt-4 rounded-2xl shadow-2xl border-border/20 bg-background/95 backdrop-blur-xl p-2">
+                <DropdownMenuLabel className="px-3 py-3">
+                  <div className="flex flex-col space-y-1">
                     <p className="text-xs font-black text-foreground uppercase tracking-wider truncate">
                       {user.email?.split("@")[0]}
                     </p>
@@ -98,36 +97,34 @@ export function Navbar({ user }: { user: any }) {
                   </div>
                 </DropdownMenuLabel>
 
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/dashboard")} className="rounded-lg mx-1 my-0.5">
-                  <LayoutDashboard className="mr-2 h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm">Dashboard</span>
+                <DropdownMenuSeparator className="bg-border/20" />
+                <DropdownMenuItem onClick={() => router.push("/dashboard")} className="rounded-xl px-3 py-2.5 my-1 hover:bg-primary/10 transition-colors cursor-pointer group">
+                  <LayoutDashboard className="mr-3 h-4 w-4 text-primary transition-transform group-hover:scale-110" />
+                  <span className="font-bold text-sm">Dashboard</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push("/dashboard?tab=settings")} className="rounded-lg mx-1 my-0.5">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span className="font-semibold text-sm">Settings</span>
+                <DropdownMenuItem onClick={() => router.push("/dashboard?tab=settings")} className="rounded-xl px-3 py-2.5 my-1 hover:bg-secondary/30 transition-colors cursor-pointer group">
+                  <Settings className="mr-3 h-4 w-4 text-muted-foreground transition-transform group-hover:rotate-45" />
+                  <span className="font-bold text-sm">Settings</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="bg-border/20" />
 
-                <DropdownMenuItem onClick={handleSignOut} className="rounded-lg mx-1 my-0.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-colors">
-                  <LogOut className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={handleSignOut} className="rounded-xl px-3 py-2.5 my-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer">
+                  <LogOut className="mr-3 h-4 w-4" />
                   <span className="font-black uppercase tracking-widest text-[10px]">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-
-
             <>
               <a
                 href="/login"
-                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="px-6 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground transition-all"
               >
                 Sign In
               </a>
               <a
                 href="/login"
-                className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 transition-all"
+                className="px-7 py-3 text-sm font-black rounded-2xl bg-gradient-to-r from-primary to-accent text-primary-foreground hover:shadow-[0_0_20px_rgba(108,71,255,0.4)] transition-all active:scale-[0.98] uppercase tracking-wider"
               >
                 Get Started
               </a>
@@ -161,7 +158,7 @@ export function Navbar({ user }: { user: any }) {
           <div className="pt-3 border-t border-border mt-2">
             {user ? (
               <div className="space-y-4 pt-2">
-                <div className="flex items-center gap-3 px-4 py-2 bg-secondary/50 rounded-xl border border-white/5">
+                <div className="flex items-center gap-3 px-4 py-2 bg-secondary/50 rounded-xl border border-border/20">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback>{user.email?.[0].toUpperCase()}</AvatarFallback>
                   </Avatar>
@@ -173,7 +170,7 @@ export function Navbar({ user }: { user: any }) {
                 <div className="grid grid-cols-2 gap-2">
                   <button 
                     onClick={() => { router.push("/dashboard"); setMobileOpen(false); }}
-                    className="flex items-center justify-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-widest bg-secondary text-foreground rounded-xl border border-white/5"
+                    className="flex items-center justify-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-widest bg-secondary text-foreground rounded-xl border border-border/20"
                   >
                     <LayoutDashboard className="w-4 h-4 text-primary" />
                     Dashboard

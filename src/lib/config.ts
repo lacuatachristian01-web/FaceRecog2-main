@@ -1,8 +1,8 @@
 export const siteConfig = {
-  name: process.env.NEXT_PUBLIC_SITE_NAME || "DannFlow",
+  name: process.env.NEXT_PUBLIC_SITE_NAME || "Facial Automated Attendance",
   githubUrl: process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/Danncode10",
-  description: "The backbone template for your next million-dollar idea.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "https://dannflow.vercel.app",
+  description: "High-performance facial recognition attendance management system.",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
 } as const;
 
 /**
