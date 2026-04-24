@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-primary: #6C47FF;
+  --color-primary-foreground: #ffffff;
+
+  /* Page */
+  --color-background: #0A0A0F;
+  --color-foreground: #F0EEFF;
+
+  /* Cards / panels */
+  --color-card: #13131F;
+  --color-card-foreground: #F0EEFF;
+
+  /* Muted (subtle backgrounds + secondary text) */
+  --color-muted: #1A1A2E;
+  --color-muted-foreground: #9490B5;
+
+  /* Accent (hover / highlight states) */
+  --color-accent: #1E1640;
+  --color-accent-foreground: #F0EEFF;
+
+  /* Secondary chips / badges */
+  --color-secondary: #1A1A2E;
+  --color-secondary-foreground: #F0EEFF;
+
+  /* Destructive / error */
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  /* Popover / dropdown */
+  --color-popover: #13131F;
+  --color-popover-foreground: #F0EEFF;
+
+  /* Form elements */
+  --color-input: #2E2A4A;
+  --color-ring: #6C47FF;
+  --color-border: #2E2A4A;
+
+  /* Radius */
+  --radius-5xl: 3rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/**
+ * Suppress all browser-native password icons (reveal eye, key, credentials
+ * autofill button) across Chrome, Edge, Safari, and IE/Legacy Edge.
+ * We use our own custom Eye toggle — these clash and must be hidden.
+ */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-input-decoration-container,
+input[type="password"]::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute;
+  right: -9999px;
+}
+
+/* Also suppress on text type when toggled visible */
+input[type="text"]::-webkit-credentials-auto-fill-button,
+input[type="text"]::-webkit-input-decoration-container {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute;
+  right: -9999px;
+}
