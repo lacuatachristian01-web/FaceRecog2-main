@@ -4,36 +4,26 @@ import { useState, useEffect } from 'react';
 import { signInWithID, signUpWithID } from '@/services/auth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import Link from 'next/link';
 import { 
-  Mail, 
-  Lock, 
   User, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
-  Loader2, 
-  Check, 
   Hash, 
   GraduationCap, 
-  Briefcase 
+  Briefcase,
+  Loader2,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 export function AuthPageContent() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup'>('signup'); // Default to signup as in image
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [courseYear, setCourseYear] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
   const [userRole, setUserRole] = useState<'admin' | 'student'>('student');
   const router = useRouter();
 
@@ -45,8 +35,6 @@ export function AuthPageContent() {
   const switchMode = (m: 'login' | 'signup') => {
     setMode(m);
     localStorage.setItem('df_auth_mode', m);
-    setError('');
-    setSuccess(false);
     setId('');
     setCourseYear('');
     setName('');
@@ -55,29 +43,21 @@ export function AuthPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       if (mode === 'login') {
         await signInWithID(name, id);
-        setSuccess(true);
-        setTimeout(() => {
-          toast.success('Login successful!');
-          router.push('/dashboard');
-          router.refresh();
-        }, 800);
+        toast.success('Login successful!');
+        router.push('/dashboard');
+        router.refresh();
       } else {
         await signUpWithID(name, id, userRole, courseYear);
-        setSuccess(true);
-        setTimeout(() => {
-          toast.success('Account created!', { description: 'Welcome to the system!' });
-          router.push('/dashboard');
-          router.refresh();
-        }, 1500);
+        toast.success('Account created!', { description: 'Taking you to registration...' });
+        router.push('/dashboard');
+        router.refresh();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred';
-      setError(message);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -85,272 +65,160 @@ export function AuthPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden selection:bg-primary/30">
-      {/* Grid Background */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-20 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px]" />
+    <div className="min-h-screen bg-black text-foreground flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+      {/* Background Subtle Gradient */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_70%)] pointer-events-none" />
 
-      {/* Decorative Glows */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <motion.div 
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.15, 0.2, 0.15],
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-primary/20 blur-[100px]"
-        />
-        <motion.div 
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.1, 0.15, 0.1],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute -bottom-[10%] -left-[5%] w-[400px] h-[400px] rounded-full bg-primary/10 blur-[100px]"
-        />
-      </div>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-[400px] space-y-10 relative z-10"
+      >
+        {/* Header / Logo Section */}
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center tracking-tighter">
+            <span className="text-5xl font-black text-white">FRM</span>
+            <span className="text-5xl font-black text-blue-600">AS</span>
+          </div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">
+            Facial Recognition & Monitoring Access System
+          </p>
+        </div>
 
-      {/* Main Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row relative z-10">
-        {/* Brand Side - Desktop Only */}
-        <div className="hidden lg:flex w-[450px] shrink-0 flex-col justify-between p-12 border-r border-border bg-card/30 backdrop-blur-sm relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
-          
-          <div className="relative z-10">
-            {/* Logo */}
-            <div className="flex items-center gap-3 mb-16">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-blue-500 flex items-center justify-center font-bold text-white shadow-lg shadow-primary/20">
-                F
+        {/* Form Container */}
+        <div className="space-y-8">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-blue-600/90 tracking-tight">
+              {mode === 'signup' 
+                ? (userRole === 'student' ? 'Step 1: Student Sign-Up' : 'Step 1: Admin Sign-Up')
+                : (userRole === 'student' ? 'Student Log In' : 'Admin Log In')
+              }
+            </h2>
+            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-800 to-transparent mt-4" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-5">
+              {/* Role Selection */}
+              <div className="flex gap-2 p-1 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
+                <button
+                  type="button"
+                  onClick={() => setUserRole('student')}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
+                    userRole === 'student' ? "bg-blue-600 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <GraduationCap size={14} />
+                  Student
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRole('admin')}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
+                    userRole === 'admin' ? "bg-blue-600 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <Briefcase size={14} />
+                  Admin
+                </button>
               </div>
-              <span className="text-xl font-bold tracking-tight">Facial Automated Attendance</span>
-            </div>
 
-            {/* Headline */}
-            <h1 className="text-4xl font-extrabold leading-tight tracking-tight mb-6">
-              Automated Attendance.
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-primary bg-[length:200%_auto] animate-shimmer">
-                Powered by AI.
-              </span>
-            </h1>
+              {/* Full Name */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 ml-1">Full Name:</label>
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-blue-500 transition-colors" />
+                  <Input
+                    placeholder="Alex Johnson"
+                    className="pl-12 h-12 bg-zinc-900/40 border-zinc-800/60 focus-visible:ring-blue-600/50 rounded-xl text-zinc-200 placeholder:text-zinc-700"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-            <p className="text-muted-foreground leading-relaxed max-w-xs mb-10">
-              A high-performance facial recognition system built for schools and businesses.
-            </p>
+              {/* Student ID */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-400 ml-1">Student ID:</label>
+                <div className="relative group">
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 group-focus-within:text-blue-500 transition-colors" />
+                  <Input
+                    placeholder="202145678"
+                    className="pl-12 h-12 bg-zinc-900/40 border-zinc-800/60 focus-visible:ring-blue-600/50 rounded-xl text-zinc-200 placeholder:text-zinc-700"
+                    value={id}
+                    onChange={(e) => setId(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-            {/* Features List */}
-            <div className="space-y-4">
-              {[
-                'Next.js 15 & Supabase Integration',
-                'Real-time Facial Recognition',
-                'Secure RLS Data Protection',
-                'Advanced Admin Dashboard'
-              ].map((feature, i) => (
-                <motion.div 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 * i }}
-                  key={feature} 
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-5 h-5 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                    <Check size={12} />
-                  </div>
-                  <span className="text-sm text-muted-foreground/90">{feature}</span>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          {/* System Status */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-muted/50 border border-border/50 relative z-10">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" />
-            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">All Systems Live</span>
-          </div>
-        </div>
-
-        {/* Form Side */}
-        <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-[420px]"
-          >
-            <div className="mb-8 space-y-3 text-center">
-              <h2 className="text-4xl font-black tracking-tight text-foreground">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-primary bg-[length:200%_auto] animate-shimmer">
-                  {mode === 'login' ? 'Welcome Back' : 'Join our Community'}
-                </span>
-              </h2>
-              <p className="text-muted-foreground font-medium">
-                {mode === 'login' 
-                  ? 'Sign in to continue your attendance tracking.' 
-                  : "We're excited to have you join our attendance system!"}
-              </p>
-            </div>
-
-            <Tabs value={mode} onValueChange={(v) => switchMode(v as any)} className="w-full mb-8">
-              <TabsList className="w-full grid grid-cols-2 h-11">
-                <TabsTrigger value="login" className="text-sm font-semibold">Login</TabsTrigger>
-                <TabsTrigger value="signup" className="text-sm font-semibold">Sign Up</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <AnimatePresence mode="wait">
-              {success ? (
-                <motion.div
-                  key="success"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="p-8 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-center space-y-4"
-                >
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mx-auto">
-                    <Check size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-foreground">Success!</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {mode === 'login' ? 'Glad to see you again! Taking you to your dashboard...' : 'Your account is ready! You can now sign in.'}
-                    </p>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.form
-                  key={mode}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  onSubmit={handleSubmit}
-                  className="space-y-5"
-                >
-                  {mode === 'signup' && (
-                    <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                        I am a...
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button
-                          type="button"
-                          variant={userRole === 'student' ? 'default' : 'outline'}
-                          onClick={() => setUserRole('student')}
-                          className="h-12 gap-2 rounded-xl"
-                        >
-                          <GraduationCap size={18} />
-                          Student
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={userRole === 'admin' ? 'default' : 'outline'}
-                          onClick={() => setUserRole('admin')}
-                          className="h-12 gap-2 rounded-xl"
-                        >
-                          <Briefcase size={18} />
-                          Admin
-                        </Button>
-                      </div>
+              {/* Course / Year (Dropdown for student signup) */}
+              {mode === 'signup' && userRole === 'student' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="text-xs font-bold text-zinc-400 ml-1">Course / Year:</label>
+                  <div className="relative">
+                    <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 z-10" />
+                    <select
+                      className="flex h-12 w-full rounded-xl border border-zinc-800/60 bg-zinc-900/40 pl-12 pr-4 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-600/50 appearance-none"
+                      value={courseYear}
+                      onChange={(e) => setCourseYear(e.target.value)}
+                      required
+                    >
+                      <option value="" disabled className="bg-zinc-900 text-zinc-500">Select Course / Year</option>
+                      <option value="Computer Science / 1st Year" className="bg-zinc-900">Computer Science / 1st Year</option>
+                      <option value="Computer Science / 2nd Year" className="bg-zinc-900">Computer Science / 2nd Year</option>
+                      <option value="Computer Science / 3rd Year" className="bg-zinc-900">Computer Science / 3rd Year</option>
+                      <option value="Computer Science / 4th Year" className="bg-zinc-900">Computer Science / 4th Year</option>
+                      <option value="Information Tech / 1st Year" className="bg-zinc-900">Information Tech / 1st Year</option>
+                      <option value="Information Tech / 2nd Year" className="bg-zinc-900">Information Tech / 2nd Year</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600">
+                      <ChevronRight size={16} className="rotate-90" />
                     </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                        Full Name
-                      </label>
-                      <div className="relative group">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
-                        <Input
-                          placeholder="Juan Dela Cruz"
-                          className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                        ID Number
-                      </label>
-                      <div className="relative group">
-                        <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
-                        <Input
-                          placeholder="e.g. 231-0726"
-                          className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                          value={id}
-                          onChange={(e) => setId(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {mode === 'signup' && userRole === 'student' && (
-                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                          Course & Year
-                        </label>
-                        <div className="relative group">
-                          <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
-                          <Input
-                            placeholder="BSCS 4A"
-                            className="pl-11 h-12 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-primary/50"
-                            value={courseYear}
-                            onChange={(e) => setCourseYear(e.target.value)}
-                            required
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
-
-                  {error && (
-                    <p className="text-[13px] text-destructive bg-destructive/5 border border-destructive/10 px-4 py-2.5 rounded-lg">
-                      {error}
-                    </p>
-                  )}
-
-                  <Button 
-                    type="submit" 
-                    className="w-full h-12 text-base font-bold rounded-xl shadow-lg shadow-primary/20"
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        {mode === 'login' ? 'Sign In' : 'Create Account'}
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </Button>
-                </motion.form>
+                </div>
               )}
-            </AnimatePresence>
+            </div>
 
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border/40 bg-card/30 backdrop-blur-md px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-[11px] text-muted-foreground/60 tracking-wide font-medium">
-          © 2026 FACE RECOGNITION SYSTEM • BUILT FOR SPEED
-        </p>
-        <div className="flex items-center gap-6">
-          {['Privacy', 'Terms', 'Docs'].map((item) => (
-            <Link 
-              key={item} 
-              href="#" 
-              className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors uppercase tracking-widest font-bold"
+            <Button 
+              type="submit" 
+              className="w-full h-12 text-lg font-bold rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 hover:from-blue-600 hover:to-blue-400 text-white shadow-xl shadow-blue-900/20 transition-all border-none"
+              disabled={loading}
             >
-              {item}
-            </Link>
-          ))}
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                mode === 'signup' ? 'Confirm Sign Up' : 'Log In'
+              )}
+            </Button>
+          </form>
+
+          {/* Footer Link */}
+          <div className="text-center pt-2">
+            <button 
+              onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+              className="text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              {mode === 'login' ? (
+                <>New here? <span className="text-blue-500 font-bold ml-1">Sign Up</span></>
+              ) : (
+                <>Have already account? <span className="text-blue-500 font-bold ml-1">Log In</span></>
+              )}
+            </button>
+          </div>
         </div>
-      </footer>
+      </motion.div>
+
+      {/* Decorative footer text */}
+      <div className="absolute bottom-8 text-[10px] text-zinc-800 font-bold uppercase tracking-widest">
+        Secured Access Terminal v2.0
+      </div>
     </div>
   );
 }
