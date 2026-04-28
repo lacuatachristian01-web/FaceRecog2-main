@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { Database } from '@/types/supabase';
+import { revalidatePath } from 'next/cache';
 
 export type Room = Database['public']['Tables']['rooms']['Row'];
 
@@ -31,8 +32,17 @@ export async function createRoom(name: string, startTime?: string, endTime?: str
     .single();
 
   if (error) throw error;
+
+  // 4. Update admin's last_room_id so it shows up in their logs immediately
+  await supabase
+    .from('profiles')
+    .update({ last_room_id: data.id })
+    .eq('id', user.id);
+
+  revalidatePath('/dashboard');
   return data;
 }
+
 
 export async function joinRoom(code: string) {
   const supabase = await createClient();
@@ -80,10 +90,11 @@ export async function getAdminRooms() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  // Fetch all rooms - RLS will handle security
+  // Admins see everything, students see joined rooms (if they ever call this)
   const { data, error } = await supabase
     .from('rooms')
     .select('*')
-    .eq('admin_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -111,8 +122,10 @@ export async function deleteRoom(roomId: string) {
     .eq('id', roomId);
 
   if (error) throw error;
+  revalidatePath('/dashboard');
   return { success: true };
 }
+
 
 export async function updateRoom(roomId: string, updates: Partial<Room>) {
   const supabase = await createClient();

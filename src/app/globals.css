@@ -62,6 +62,23 @@
     }
   }
 
+  .animate-scan-fast {
+    animation: scan 1.5s ease-in-out infinite;
+  }
+
+  @keyframes scan {
+    0%, 100% {
+      top: 0%;
+      opacity: 0;
+    }
+    10%, 90% {
+      opacity: 1;
+    }
+    50% {
+      top: 100%;
+    }
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

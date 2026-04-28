@@ -130,9 +130,13 @@ interface DashboardShellProps {
 export function DashboardShell({ profiles, user, profile, repos }: DashboardShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const defaultTab = profile?.role === 'admin' ? "rooms" : "terminal"
+  const defaultTab = profile?.role === 'admin' ? "rooms" : "status"
   const initialTab = searchParams.get("tab") || defaultTab
   const [activeTab, setActiveTabLocal] = React.useState(initialTab)
+  const [isRegisteringPhoto, setIsRegisteringPhoto] = React.useState(false)
+  const [registrationMode, setRegistrationMode] = React.useState<'camera' | 'upload' | null>(null)
+  const [initialImageData, setInitialImageData] = React.useState<string | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const setActiveTab = (tab: string) => {
     setActiveTabLocal(tab)
@@ -160,187 +164,164 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
   const DASHBOARD_TABS = profile?.role === 'admin' 
     ? [
         { id: "rooms", label: "Rooms & Sessions", icon: DoorOpen },
+        { id: "terminal", label: "Attendance Terminal", icon: ScanFace },
         { id: "registry", label: "Student Users", icon: Users },
         { id: "logs", label: "Attendance & Fines", icon: ClipboardList },
-        { id: "settings", label: "Settings", icon: Settings },
+        { id: "settings", label: "Profile", icon: User },
       ]
     : [
-        { id: "terminal", label: "Attendance Terminal", icon: ScanFace },
-      ]
+        { id: "status", label: "Dashboard", icon: Activity },
+        { id: "join", label: "Join to other room", icon: LogIn },
+      ];
+
+  // Hide navigation if student is not registered or hasn't joined a room yet
+  const showTabs = profile?.role === 'admin' || (profile?.face_registered && profile?.last_room_id);
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <PillTabs items={DASHBOARD_TABS} active={activeTab} onChange={setActiveTab} className="mb-0" />
+    <>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          {showTabs && (
+            <PillTabs items={DASHBOARD_TABS} active={activeTab} onChange={setActiveTab} className="mb-0" />
+          )}
 
-
-        <div className="flex items-center gap-3">
-          {profile?.role === 'admin' && (
-            <Badge variant="outline" className="text-primary border-primary/20 bg-primary/10 gap-1 px-3 py-1">
-              <Lock className="w-3 h-3" />
-              Admin Mode
+          <div className="flex items-center gap-3">
+            {profile?.role === 'admin' && (
+              <Badge variant="outline" className="text-primary border-primary/20 bg-primary/10 gap-1 px-3 py-1">
+                <Lock className="w-3 h-3" />
+                Admin Mode
+              </Badge>
+            )}
+            <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-wider">
+              v1.1.0-alpha
             </Badge>
-          )}
-          <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-wider">
-            v1.1.0-alpha
-          </Badge>
-        </div>
-      </div>
-
-      {/* 1. Overview Tab */}
-      <TabsContent value="overview" className="space-y-12 animate-in fade-in duration-500">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8">
-          <Card className="col-span-1 md:col-span-4 bg-card text-card-foreground border border-border shadow-sm hover:scale-[1.01] transition-all group rounded-3xl rounded-tl-xl p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground tracking-tighter">Supabase Engine</CardTitle>
-              <Database className="w-5 h-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black tracking-tighter">Active</div>
-              <p className="text-xs text-muted-foreground mt-2 font-mono">Live Sync: Enabled</p>
-            </CardContent>
-          </Card>
-          <Card className="col-span-1 md:col-span-4 bg-card text-card-foreground border border-border shadow-sm hover:scale-[1.01] transition-all group rounded-3xl p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground tracking-tighter">GitHub Context</CardTitle>
-              <GitBranch className="w-5 h-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black tracking-tighter">Indexed</div>
-              <p className="text-xs text-muted-foreground mt-2 font-mono">Repo: {siteConfig.name}-v2</p>
-            </CardContent>
-          </Card>
-          <Card className="col-span-1 md:col-span-4 bg-card text-card-foreground border border-border shadow-sm hover:scale-[1.01] transition-all group rounded-3xl rounded-tr-xl p-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground tracking-tighter">Terminal MCP</CardTitle>
-              <Terminal className="w-5 h-5 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black tracking-tighter">Ready</div>
-              <p className="text-xs text-muted-foreground mt-2 font-mono">Execution Level: 100%</p>
-            </CardContent>
-          </Card>
+          </div>
         </div>
 
-        <Card className="bg-card text-card-foreground border border-border shadow-sm rounded-3xl overflow-hidden">
-          <CardContent className="p-10 md:p-14">
-            <div className="flex flex-col md:flex-row items-start gap-10">
-              <div className="w-24 h-24 rounded-3xl bg-secondary border border-border flex items-center justify-center shrink-0">
-                <Sparkles className="w-10 h-10 text-primary animate-pulse" />
-              </div>
-              <div className="space-y-6">
-                <h3 className="text-2xl md:text-3xl font-bold tracking-tighter">The Software Engineering Edge</h3>
-                <p className="text-muted-foreground text-lg leading-relaxed max-w-4xl tracking-tight">
-                  "{siteConfig.name} is designed for architects who treat AI as a first-class collaborator. By structuring your project around the <span className="text-foreground font-medium">Trinity Model</span> (DB, Code, Terminal), you reduce cognitive load and maximize throughput. Every file exists for a reason, and every reason is typed."
-                </p>
-                <div className="flex flex-wrap gap-4 pt-4">
-                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border py-1.5 px-4 rounded-full">Modular Architecture</Badge>
-                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border py-1.5 px-4 rounded-full">Type-Safe Services</Badge>
-                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-border py-1.5 px-4 rounded-full">AI-Native Workflow</Badge>
-                </div>
-              </div>
+        {/* Admin: Rooms Tab */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="rooms" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-semibold text-foreground">Room Management</h2>
+              <p className="text-sm text-muted-foreground">Create rooms and generate codes for students.</p>
             </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
+            <RoomList />
+          </TabsContent>
+        ) : null}
 
+        {/* Admin: Logs Tab */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="logs" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-semibold text-foreground">Attendance Logs</h2>
+              <p className="text-sm text-muted-foreground">View real-time attendance and fines.</p>
+            </div>
+            <AttendanceLogs roomId={profile?.last_room_id || ""} />
+          </TabsContent>
+        ) : null}
 
+        {/* Admin: Student Registry Tab */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="registry" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-semibold text-foreground">Student Registry</h2>
+              <p className="text-sm text-muted-foreground">Manage all registered students and their access.</p>
+            </div>
+            <StudentRegistry />
+          </TabsContent>
+        ) : null}
 
-      {/* Admin: Rooms Tab */}
-      {profile?.role === 'admin' && (
-        <TabsContent value="rooms" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-semibold text-foreground">Room Management</h2>
-            <p className="text-sm text-muted-foreground">Create rooms and generate codes for students.</p>
-          </div>
-          <RoomList />
-        </TabsContent>
-      )}
+        {/* Admin: Terminal Tab */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="terminal" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-semibold text-foreground">Attendance Terminal</h2>
+              <p className="text-sm text-muted-foreground">Global biometric scanner for real-time attendance.</p>
+            </div>
+            <AttendanceTerminal 
+              roomId={profile?.last_room_id || ""} 
+              userId={user.id}
+              userName={profile?.full_name || "Administrator"}
+              isGlobal 
+            />
+          </TabsContent>
+        ) : null}
 
-      {/* Admin: Logs Tab */}
-      {profile?.role === 'admin' && (
-        <TabsContent value="logs" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-semibold text-foreground">Attendance Logs</h2>
-            <p className="text-sm text-muted-foreground">View real-time attendance and fines.</p>
-          </div>
-          <AttendanceLogs roomId={profile?.last_room_id || ""} />
-        </TabsContent>
-      )}
-
-      {/* Admin: Student Registry Tab */}
-      {profile?.role === 'admin' && (
-        <TabsContent value="registry" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-semibold text-foreground">Student Registry</h2>
-            <p className="text-sm text-muted-foreground">Manage student profiles, IDs, and facial registrations.</p>
-          </div>
-          <StudentRegistry />
-        </TabsContent>
-      )}
-
-      {/* Student: Terminal Tab */}
-      {profile?.role === 'student' && (
-        <TabsContent value="terminal" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          {!profile?.face_registered ? (
-            <FaceRegistration />
-          ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <h2 className="text-2xl font-semibold text-foreground">Attendance Terminal</h2>
-                <p className="text-sm text-muted-foreground">Verify your face to Time In or Time Out.</p>
+        {/* 5. Status/Dashboard Tab (Student) */}
+        {profile?.role === 'student' ? (
+          <TabsContent value="status" className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
+            {(!profile?.face_registered || isRegisteringPhoto) ? (
+              <div className="space-y-6">
+                {isRegisteringPhoto && (
+                  <button 
+                    onClick={() => setIsRegisteringPhoto(false)}
+                    className="text-xs font-black text-muted-foreground uppercase tracking-widest hover:text-white transition-colors"
+                  >
+                    ← Back to Dashboard
+                  </button>
+                )}
+                <FaceRegistration 
+                  onSuccess={() => {
+                    setIsRegisteringPhoto(false);
+                    setInitialImageData(null);
+                  }} 
+                  initialMode={registrationMode}
+                  initialImage={initialImageData}
+                  isReplacing={!!profile?.face_image}
+                />
               </div>
-              <AttendanceTerminal 
-                roomId={profile?.last_room_id || ""} 
-                userId={user.id} 
-                userName={profile?.full_name || "Student"} 
+            ) : !profile?.last_room_id ? (
+              <div className="space-y-6">
+                <JoinRoom />
+              </div>
+            ) : (
+              <StudentAttendanceHistory 
+                studentId={user.id} 
+                profile={profile} 
+                onUpdateFace={(mode) => {
+                  if (mode === 'upload') {
+                    fileInputRef.current?.click();
+                  } else {
+                    setRegistrationMode('camera');
+                    setInitialImageData(null);
+                    setIsRegisteringPhoto(true);
+                  }
+                }}
               />
-            </>
-          )}
-        </TabsContent>
-      )}
+            )}
+          </TabsContent>
+        ) : null}
 
-      {/* Student: Join Tab */}
-      {profile?.role === 'student' && (
-        <TabsContent value="join" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          <JoinRoom />
-        </TabsContent>
-      )}
-
-      {/* Student: Status Tab */}
-      {profile?.role === 'student' && (
-        <TabsContent value="status" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-semibold text-foreground">My Attendance History</h2>
-            <p className="text-sm text-muted-foreground">Review your past attendance records and fines.</p>
+        {/* 6. Settings Tab */}
+        <TabsContent value="settings" className="animate-in slide-in-from-bottom-2 duration-500">
+          <div className="flex justify-center w-full py-6 md:py-12">
+            <Card className="bg-card text-card-foreground border border-border p-6 md:p-12 max-w-2xl w-full shadow-sm rounded-3xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-blue-500 to-accent opacity-30" />
+              <ProfileForm profile={profile} />
+            </Card>
           </div>
-          <StudentAttendanceHistory studentId={user.id} />
         </TabsContent>
-      )}
+      </Tabs>
 
-      {/* 5. Security Tab */}
-      <TabsContent value="security" className="animate-in slide-in-from-bottom-2 duration-500">
-        <div className="flex justify-center w-full py-6 md:py-12">
-          <Card className="bg-card text-card-foreground border border-border p-6 md:p-12 max-w-2xl w-full shadow-sm rounded-3xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-blue-500 to-accent opacity-30" />
-            <SecurityForm />
-          </Card>
-        </div>
-      </TabsContent>
-
-      {/* 6. Settings Tab */}
-      <TabsContent value="settings" className="animate-in slide-in-from-bottom-2 duration-500">
-        <div className="flex justify-center w-full py-6 md:py-12">
-          <Card className="bg-card text-card-foreground border border-border p-6 md:p-12 max-w-2xl w-full shadow-sm rounded-3xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-blue-500 to-accent opacity-30" />
-            <ProfileForm profile={profile} />
-          </Card>
-        </div>
-      </TabsContent>
-
-    </Tabs>
-
-
-
+      {/* Hidden File Input for instant dashboard triggering */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept="image/*" 
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              setInitialImageData(event.target?.result as string);
+              setRegistrationMode('upload');
+              setIsRegisteringPhoto(true);
+            };
+            reader.readAsDataURL(file);
+          }
+        }} 
+      />
+    </>
   )
 }

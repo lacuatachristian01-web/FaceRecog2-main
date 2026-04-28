@@ -213,3 +213,23 @@ export async function getAbsentStudents(roomId: string) {
     .filter(p => p.profiles && !attendedIds.has(p.profiles.id))
     .map(p => p.profiles);
 }
+export async function getRoomParticipantsWithFaces(roomId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('room_participants')
+    .select(`
+      profiles:student_id (
+        id,
+        full_name,
+        face_embedding
+      )
+    `)
+    .eq('room_id', roomId)
+    .eq('is_approved', true);
+
+  if (error) throw error;
+  
+  return (data as any[] || [])
+    .map(d => d.profiles)
+    .filter(p => p && p.face_embedding);
+}

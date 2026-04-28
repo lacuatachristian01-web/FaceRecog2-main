@@ -4,9 +4,10 @@ import { useState } from "react";
 import { joinRoom } from "@/services/room";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
-import { KeyRound, ArrowRight, Loader2 } from "lucide-react";
+import { Loader2, Scan } from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export function JoinRoom() {
   const [code, setCode] = useState("");
@@ -18,10 +19,9 @@ export function JoinRoom() {
 
     setIsJoining(true);
     try {
-      const result = await joinRoom(code);
+      await joinRoom(code);
       toast.success("Joined room successfully!");
       setCode("");
-      // Redirect to dashboard to start attendance
       window.location.href = `/dashboard`;
     } catch (error: any) {
       toast.error(error.message || "Failed to join room");
@@ -31,49 +31,88 @@ export function JoinRoom() {
   };
 
   return (
-    <Card className="border-border bg-card max-w-md mx-auto shadow-lg">
-      <CardHeader>
-        <div className="bg-primary/10 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-          <KeyRound className="text-primary h-6 w-6" />
+    <div className="flex flex-col items-center justify-center py-10 px-4">
+      {/* Header Branding */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="text-center mb-12"
+      >
+        <h1 className="text-5xl font-black tracking-tighter text-white mb-2 italic">
+          FRM<span className="text-primary drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]">AS</span>
+        </h1>
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-80">
+          Facial Recognition & Monitoring Access System
+        </p>
+      </motion.div>
+
+      {/* Futuristic Join Container */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="relative w-full max-w-sm"
+      >
+        {/* Glow Effect */}
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary to-blue-600 rounded-[2.5rem] blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+        
+        <div className="relative bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-10 shadow-2xl overflow-hidden">
+          {/* Inner Light Effect */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-30" />
+          
+          <form onSubmit={handleJoin} className="space-y-10">
+            <div className="text-center space-y-4">
+              <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest leading-relaxed">
+                Enter the Room Code provided by the Admin.
+              </p>
+              
+              <div className="relative group">
+                <Input
+                  placeholder="••••••"
+                  value={code}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value.toUpperCase())}
+                  className={cn(
+                    "h-16 text-center text-3xl font-black tracking-[0.4em] bg-transparent border-none text-white focus-visible:ring-0 placeholder:text-white/10 placeholder:tracking-normal",
+                    code ? "text-primary drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" : ""
+                  )}
+                  maxLength={6}
+                />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
+              </div>
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={isJoining || code.length < 6} 
+              className="w-full h-14 bg-gradient-to-r from-blue-700 to-blue-500 hover:from-blue-600 hover:to-blue-400 text-white font-black uppercase tracking-widest italic rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95 disabled:opacity-50 disabled:scale-100"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  Join
+                </>
+              )}
+            </Button>
+          </form>
         </div>
-        <CardTitle className="text-foreground">Join a Room</CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Enter the unique code provided by your instructor or admin to join an attendance session.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleJoin} className="space-y-4">
-          <div className="space-y-2">
-            <Input
-              placeholder="e.g. X8Y2Z9"
-              value={code}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value.toUpperCase())}
-              className="text-center text-2xl font-mono tracking-widest bg-background border-input uppercase"
-              maxLength={6}
-            />
-          </div>
-          <Button 
-            type="submit" 
-            disabled={isJoining || code.length < 6} 
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Joining...
-              </>
-            ) : (
-              <>
-                Join Room
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="text-xs text-center text-muted-foreground justify-center">
-        Contact your administrator if you don't have a code.
-      </CardFooter>
-    </Card>
+      </motion.div>
+
+      {/* Footer Status */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="mt-12 text-center"
+      >
+        <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] animate-pulse">
+          Awaiting Room Code from Admin...
+        </p>
+      </motion.div>
+    </div>
   );
 }

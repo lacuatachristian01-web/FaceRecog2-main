@@ -5,9 +5,9 @@ import * as faceapi from "face-api.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Camera, Loader2, CheckCircle2, Clock, UserCheck, AlertCircle, Scan, Sparkles, LogIn, ArrowRight } from "lucide-react";
-import { timeIn, timeOut, getTodayStatus, checkApproval } from "@/services/attendance";
-import { getFaceEmbedding } from "@/services/face";
+import { Camera, Loader2, CheckCircle2, Clock, UserCheck, AlertCircle, Scan, Sparkles, LogIn, ArrowRight, Search, Users } from "lucide-react";
+import { timeIn, timeOut, getTodayStatus, checkApproval, getRoomParticipantsWithFaces } from "@/services/attendance";
+import { getFaceEmbedding, updateProfileImage } from "@/services/face";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,9 +17,10 @@ interface AttendanceTerminalProps {
   roomId: string;
   userId: string;
   userName: string;
+  isGlobal?: boolean;
 }
 
-export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTerminalProps) {
+export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false }: AttendanceTerminalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -30,6 +31,11 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
   const [todayStatus, setTodayStatus] = useState<any>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [autoTriggerProgress, setAutoTriggerProgress] = useState(0);
+  const [matchedStudent, setMatchedStudent] = useState<any>(null);
+  const [allParticipants, setAllParticipants] = useState<any[]>([]);
+  const detectionStartTime = useRef<number | null>(null);
+  const AUTO_TRIGGER_DELAY = 1500;
 
   useEffect(() => {
     if (roomId && userId) {
@@ -40,8 +46,14 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
 
   const checkUserApproval = async () => {
     try {
-      const approved = await checkApproval(roomId, userId);
-      setIsApproved(approved);
+      if (isGlobal) {
+        const participants = await getRoomParticipantsWithFaces(roomId);
+        setAllParticipants(participants);
+        setIsApproved(true); // Admin is always allowed to use the terminal
+      } else {
+        const approved = await checkApproval(roomId, userId);
+        setIsApproved(approved);
+      }
     } catch (err) {
       console.error("Failed to check approval", err);
     }
@@ -97,6 +109,95 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
 
         if (detections) {
           setFaceDetected(true);
+          
+          // Auto-trigger & Matching logic
+          if (!isProcessing && status === 'idle' && isApproved !== false) {
+            try {
+              let targetEmbeddings = [];
+              if (isGlobal) {
+                targetEmbeddings = allParticipants;
+              } else {
+                const faceData = await getFaceEmbedding(userId);
+                if (faceData?.embedding) {
+                  targetEmbeddings = [{ id: userId, full_name: userName, face_embedding: faceData.embedding }];
+                }
+              }
+              
+              if (targetEmbeddings.length > 0) {
+                const fullDetection = await faceapi
+                  .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                  .withFaceLandmarks()
+                  .withFaceDescriptor();
+
+                if (fullDetection) {
+                  let bestMatch = null;
+                  let minDistance = 1.0;
+
+                  for (const participant of targetEmbeddings) {
+                    const distance = faceapi.euclideanDistance(
+                      new Float32Array(fullDetection.descriptor),
+                      new Float32Array(participant.face_embedding as number[])
+                    );
+
+                    if (distance < minDistance) {
+                      minDistance = distance;
+                      bestMatch = participant;
+                    }
+                  }
+
+                  // If match found
+                  if (bestMatch && minDistance < 0.45) {
+                    setMatchedStudent(bestMatch);
+                    if (!detectionStartTime.current) {
+                      detectionStartTime.current = Date.now();
+                    }
+                    const elapsed = Date.now() - detectionStartTime.current;
+                    const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
+                    setAutoTriggerProgress(progress);
+
+                    if (elapsed >= AUTO_TRIGGER_DELAY) {
+                      detectionStartTime.current = null;
+                      setAutoTriggerProgress(0);
+                      
+                      // For global mode, we need to fetch today's status for the specific matched student
+                      if (isGlobal) {
+                        const sStatus = await getTodayStatus(roomId, bestMatch.id);
+                        const type = !sStatus ? 'in' : 'out';
+                        if (!(type === 'out' && sStatus?.time_out)) {
+                          // Capture image for auto-sync if missing
+                          let capturedFrame = null;
+                          if (!bestMatch.face_image) {
+                            const canvas = document.createElement("canvas");
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            const ctx = canvas.getContext("2d");
+                            if (ctx) {
+                              ctx.scale(-1, 1);
+                              ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+                              capturedFrame = canvas.toDataURL("image/jpeg", 0.8);
+                            }
+                          }
+                          processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
+                        }
+                      } else {
+                        const type = !todayStatus ? 'in' : 'out';
+                        if (!(type === 'out' && todayStatus?.time_out)) {
+                          processAttendance(type);
+                        }
+                      }
+                    }
+                  } else {
+                    setMatchedStudent(null);
+                    detectionStartTime.current = null;
+                    setAutoTriggerProgress(0);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error("Match error", err);
+            }
+          }
+
           const resizedDetections = faceapi.resizeResults(detections, displaySize);
           const ctx = canvas.getContext("2d");
           if (ctx) {
@@ -120,6 +221,8 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
           }
         } else {
           setFaceDetected(false);
+          detectionStartTime.current = null;
+          setAutoTriggerProgress(0);
           const ctx = canvas.getContext("2d");
           ctx?.clearRect(0, 0, canvas.width, canvas.height);
         }
@@ -150,53 +253,55 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
   }, [isStreaming, stream]);
 
   const processAttendance = async (type: 'in' | 'out') => {
-    if (!videoRef.current || isProcessing) return;
-
+    if (isProcessing) return;
     setIsProcessing(true);
     try {
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (!detection) {
-        toast.error("Face not detected. Look directly at the camera.");
-        setIsProcessing(false);
-        return;
-      }
-
-      const storedEmbedding = await getFaceEmbedding(userId);
-      if (!storedEmbedding) {
-        throw new Error("You haven't registered your face yet.");
-      }
-
-      const distance = faceapi.euclideanDistance(
-        new Float32Array(detection.descriptor),
-        new Float32Array(storedEmbedding as number[])
-      );
-
-      if (distance > 0.55) {
-        throw new Error("Face verification failed. Please align your face properly.");
-      }
-
       if (type === 'in') {
         await timeIn(roomId, userId);
-        setActionMessage(`Welcome, ${userName}!`);
+        setActionMessage(`Successfully Time In!`);
       } else {
         await timeOut(roomId, userId);
-        setActionMessage(`Goodbye, ${userName}!`);
+        setActionMessage(`Successfully Time Out!`);
       }
-
       setStatus('success');
       toast.success(type === 'in' ? "Time In recorded" : "Time Out recorded");
       fetchStatus();
-
       setTimeout(() => {
         stopCamera();
       }, 4000);
-
     } catch (err: any) {
-      console.error(err);
+      toast.error(err.message || "Attendance failed");
+      setStatus('error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const processGlobalAttendance = async (sId: string, sName: string, type: 'in' | 'out', newPhoto?: string | null) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      // Silently sync photo if provided
+      if (newPhoto) {
+        await updateProfileImage(sId, newPhoto);
+      }
+
+      if (type === 'in') {
+        await timeIn(roomId, sId);
+        setActionMessage(`Successfully Time In: ${sName}`);
+      } else {
+        await timeOut(roomId, sId);
+        setActionMessage(`Successfully Time Out: ${sName}`);
+      }
+      setStatus('success');
+      toast.success(`${type === 'in' ? "Time In" : "Time Out"}: ${sName}`);
+      
+      // Auto-reset after success for global mode
+      setTimeout(() => {
+        setStatus('idle');
+        setMatchedStudent(null);
+      }, 3000);
+    } catch (err: any) {
       toast.error(err.message || "Attendance failed");
       setStatus('error');
     } finally {
@@ -242,7 +347,12 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
               <CardDescription className="font-medium">Secure facial authentication system</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
-              {todayStatus ? (
+              {isGlobal ? (
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest">
+                  <Users className="w-3 h-3" />
+                  {allParticipants.length} Students Active
+                </Badge>
+              ) : todayStatus ? (
                 <Badge className={cn(
                   "gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest",
                   todayStatus.time_out ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
@@ -278,9 +388,47 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
                 {/* Visual Guides */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className={cn(
-                    "w-[240px] h-[300px] border-2 rounded-[3rem] transition-all duration-500",
+                    "w-[240px] h-[300px] border-2 rounded-[3rem] transition-all duration-500 relative",
                     faceDetected ? "border-primary scale-105 shadow-[0_0_40px_rgba(59,130,246,0.3)]" : "border-white/10 scale-100"
-                  )} />
+                  )}>
+                    {/* Identification Label */}
+                    <AnimatePresence>
+                      {matchedStudent && status === 'idle' && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute -top-16 left-1/2 -translate-x-1/2 bg-primary/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 whitespace-nowrap"
+                        >
+                          <div className="flex items-center gap-2">
+                            <UserCheck className="h-4 w-4 text-white" />
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">{matchedStudent.full_name}</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Auto-Trigger Progress Ring */}
+                    {faceDetected && !isProcessing && status === 'idle' && (
+                      <svg className="absolute inset-[-10px] w-[calc(100%+20px)] h-[calc(100%+20px)] rotate-[-90deg]">
+                        <circle
+                          cx="50%"
+                          cy="50%"
+                          r="150"
+                          className="fill-none stroke-blue-500/20 stroke-[4]"
+                        />
+                        <motion.circle
+                          cx="50%"
+                          cy="50%"
+                          r="150"
+                          initial={{ strokeDashoffset: 942 }}
+                          animate={{ strokeDashoffset: 942 - (942 * autoTriggerProgress) / 100 }}
+                          style={{ strokeDasharray: 942 }}
+                          className="fill-none stroke-blue-500 stroke-[4] transition-all duration-100"
+                        />
+                      </svg>
+                    )}
+                  </div>
                 </div>
 
                 {isProcessing && (
@@ -352,6 +500,32 @@ export function AttendanceTerminal({ roomId, userId, userName }: AttendanceTermi
                         </div>
                       </div>
                     )}
+                  </Card>
+                </motion.div>
+              )}
+
+              {status === 'error' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.05 }}
+                  className="absolute inset-0 bg-destructive/10 backdrop-blur-xl flex items-center justify-center z-30 p-6"
+                >
+                  <Card className="bg-card/95 border-destructive/20 shadow-2xl rounded-[2.5rem] max-w-sm w-full text-center p-8 overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-destructive animate-shimmer" />
+                    <div className="mx-auto bg-destructive/10 p-4 rounded-full w-fit mb-6">
+                      <AlertCircle className="h-12 w-12 text-destructive" />
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tighter text-foreground mb-2 uppercase italic">Biometric Mismatch</h3>
+                    <p className="text-sm text-muted-foreground font-medium mb-6">The scanned face does not match the registered profile for this account.</p>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setStatus('idle')}
+                      className="border-destructive/20 text-destructive hover:bg-destructive/10 rounded-xl uppercase font-black tracking-widest text-[10px] h-10 px-6"
+                    >
+                      Try Again
+                    </Button>
                   </Card>
                 </motion.div>
               )}
