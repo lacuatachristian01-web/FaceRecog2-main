@@ -68,6 +68,19 @@ export type Database = {
           created_at: string
           start_time: string | null
           end_time: string | null
+          event_name: string | null
+          start_time_am: string | null
+          end_time_am: string | null
+          start_time_pm: string | null
+          end_time_pm: string | null
+          am_time_in_start: string | null
+          am_time_in_end: string | null
+          am_time_out_start: string | null
+          am_time_out_end: string | null
+          pm_time_in_start: string | null
+          pm_time_in_end: string | null
+          pm_time_out_start: string | null
+          pm_time_out_end: string | null
         }
         Insert: {
           id?: string
@@ -77,6 +90,19 @@ export type Database = {
           created_at?: string
           start_time?: string | null
           end_time?: string | null
+          event_name?: string | null
+          start_time_am?: string | null
+          end_time_am?: string | null
+          start_time_pm?: string | null
+          end_time_pm?: string | null
+          am_time_in_start?: string | null
+          am_time_in_end?: string | null
+          am_time_out_start?: string | null
+          am_time_out_end?: string | null
+          pm_time_in_start?: string | null
+          pm_time_in_end?: string | null
+          pm_time_out_start?: string | null
+          pm_time_out_end?: string | null
         }
         Update: {
           id?: string
@@ -86,6 +112,19 @@ export type Database = {
           created_at?: string
           start_time?: string | null
           end_time?: string | null
+          event_name?: string | null
+          start_time_am?: string | null
+          end_time_am?: string | null
+          start_time_pm?: string | null
+          end_time_pm?: string | null
+          am_time_in_start?: string | null
+          am_time_in_end?: string | null
+          am_time_out_start?: string | null
+          am_time_out_end?: string | null
+          pm_time_in_start?: string | null
+          pm_time_in_end?: string | null
+          pm_time_out_start?: string | null
+          pm_time_out_end?: string | null
         }
         Relationships: [
           {

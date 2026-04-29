@@ -105,3 +105,37 @@ export async function deleteStudentAccount(studentId: string) {
   // For this demo, we'll just delete the profile and assume the student is "gone" from the app.
   return { success: true };
 }
+export async function getAdminStats() {
+  try {
+    const supabase = await createClient();
+    
+    // Get total students
+    const { count: studentCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'student');
+
+    // Get total rooms
+    const { count: roomCount } = await supabase
+      .from('rooms')
+      .select('*', { count: 'exact', head: true });
+
+    // Get total attendance today (since midnight)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const today = now.toISOString();
+    
+    const { count: attendanceCount } = await supabase
+      .from('attendance')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today);
+
+    return {
+      students: studentCount || 0,
+      rooms: roomCount || 0,
+      attendanceToday: attendanceCount || 0
+    };
+  } catch (err) {
+    return { students: 0, rooms: 0, attendanceToday: 0 };
+  }
+}

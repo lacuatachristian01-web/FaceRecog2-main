@@ -1,7 +1,7 @@
 export const siteConfig = {
-  name: process.env.NEXT_PUBLIC_SITE_NAME || "Facial Automated Attendance",
+  name: process.env.NEXT_PUBLIC_SITE_NAME || "FRMAS",
   githubUrl: process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/Danncode10",
-  description: "High-performance facial recognition attendance management system.",
+  description: "Facial Recognition & Monitoring Access System",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
 } as const;
 

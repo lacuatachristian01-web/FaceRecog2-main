@@ -165,6 +165,19 @@ export async function deleteAttendanceRecord(id: string) {
   if (error) throw error;
   return { success: true };
 }
+
+export async function updateAttendanceRecord(id: string, updates: Partial<AttendanceRecord>) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('attendance')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
 export async function checkApproval(roomId: string, studentId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

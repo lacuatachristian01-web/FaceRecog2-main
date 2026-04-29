@@ -11,7 +11,25 @@ export type Room = Database['public']['Tables']['rooms']['Row'];
  * Handles room creation, joining, and listing.
  */
 
-export async function createRoom(name: string, startTime?: string, endTime?: string) {
+export async function createRoom(
+  name: string, 
+  startTime?: string, 
+  endTime?: string, 
+  eventName?: string,
+  startTimeAm?: string,
+  endTimeAm?: string,
+  startTimePm?: string,
+  endTimePm?: string,
+  amTimeInStart?: string,
+  amTimeInEnd?: string,
+  amTimeOutStart?: string,
+  amTimeOutEnd?: string,
+  pmTimeInStart?: string,
+  pmTimeInEnd?: string,
+  pmTimeOutStart?: string,
+  pmTimeOutEnd?: string,
+  sessionDate?: string
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -26,7 +44,21 @@ export async function createRoom(name: string, startTime?: string, endTime?: str
       code,
       admin_id: user.id,
       start_time: startTime,
-      end_time: endTime
+      end_time: endTime,
+      event_name: eventName,
+      start_time_am: startTimeAm,
+      end_time_am: endTimeAm,
+      start_time_pm: startTimePm,
+      end_time_pm: endTimePm,
+      am_time_in_start: amTimeInStart,
+      am_time_in_end: amTimeInEnd,
+      am_time_out_start: amTimeOutStart,
+      am_time_out_end: amTimeOutEnd,
+      pm_time_in_start: pmTimeInStart,
+      pm_time_in_end: pmTimeInEnd,
+      pm_time_out_start: pmTimeOutStart,
+      pm_time_out_end: pmTimeOutEnd,
+      event_date: sessionDate
     })
     .select()
     .single();
