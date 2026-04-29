@@ -20,7 +20,10 @@ import {
   ScanFace,
   LogIn,
   UserCheck,
-  Users
+  Users,
+  LayoutGrid,
+  ArrowLeft,
+  FolderKanban
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,10 +43,22 @@ import { AttendanceTerminal } from "./attendance/attendance-terminal"
 import { FaceRegistration } from "./student/face-registration"
 import { getStudentRooms } from "@/services/room"
 import { getStudentAttendance } from "@/services/attendance"
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ChevronDown, LogOut } from "lucide-react"
+import { signOut } from "@/services/auth"
 
 import { AttendanceLogs } from "./admin/attendance-logs"
 import { StudentAttendanceHistory } from "./student/attendance-history"
 import { StudentRegistry } from "./admin/student-registry"
+import { AdminOverview } from "./admin/admin-overview"
 
 const REPOS_PER_PAGE = 5;
 
@@ -130,17 +145,18 @@ interface DashboardShellProps {
 export function DashboardShell({ profiles, user, profile, repos }: DashboardShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const defaultTab = profile?.role === 'admin' ? "rooms" : "status"
-  const initialTab = searchParams.get("tab") || defaultTab
-  const [activeTab, setActiveTabLocal] = React.useState(initialTab)
+  const [activeTab, setActiveTabLocal] = React.useState(searchParams.get("tab") || (profile?.role === 'admin' ? "overview" : "profile"))
+  const [activeView, setActiveView] = React.useState<string | null>(searchParams.get("view") || null)
   const [isRegisteringPhoto, setIsRegisteringPhoto] = React.useState(false)
   const [registrationMode, setRegistrationMode] = React.useState<'camera' | 'upload' | null>(null)
   const [initialImageData, setInitialImageData] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  const setActiveTab = (tab: string) => {
+  const setActiveTab = (tabAndView: string) => {
+    const [tab, view] = tabAndView.split(":")
     setActiveTabLocal(tab)
-    router.push(`/dashboard?tab=${tab}`, { scroll: false })
+    setActiveView(view || null)
+    router.push(`/dashboard?tab=${tab}${view ? `&view=${view}` : ""}`, { scroll: false })
   }
 
   const { ref, inView } = useInView()
@@ -163,9 +179,11 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
 
   const DASHBOARD_TABS = profile?.role === 'admin' 
     ? [
-        { id: "rooms", label: "Rooms & Sessions", icon: DoorOpen },
-        { id: "terminal", label: "Attendance Terminal", icon: ScanFace },
+        { id: "overview", label: "Overview", icon: LayoutGrid },
+        { id: "rooms", label: "Create Room + Event Name", icon: DoorOpen },
+        { id: "room_registry", label: "Room Registry", icon: FolderKanban },
         { id: "registry", label: "Student Users", icon: Users },
+        { id: "terminal", label: "Attendance Terminal", icon: ScanFace },
         { id: "logs", label: "Attendance & Fines", icon: ClipboardList },
         { id: "settings", label: "Profile", icon: User },
       ]
@@ -174,15 +192,93 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         { id: "join", label: "Join to other room", icon: LogIn },
       ];
 
-  // Hide navigation if student is not registered or hasn't joined a room yet
-  const showTabs = profile?.role === 'admin' || (profile?.face_registered && profile?.last_room_id);
+  // Hide navigation if student is not registered
+  const showTabs = profile?.role === 'admin' || profile?.face_registered;
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.refresh();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
     <>
+      {/* Top Header for Admin - Profile & Account Detail */}
+      {profile?.role === 'admin' && (
+        <div className="absolute top-8 right-8 z-50 animate-in fade-in slide-in-from-right-4 duration-1000">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-3 bg-card/40 hover:bg-card/60 active:scale-[0.98] transition-all rounded-2xl px-2 py-2 pr-4 border border-primary/20 hover:border-primary/50 shadow-xl group cursor-pointer backdrop-blur-md">
+              <Avatar className="h-9 w-9 border-2 border-primary/20 shadow-lg transition-transform group-hover:rotate-6">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-primary-foreground font-black text-xs">
+                  {user.email?.[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="flex flex-col items-start leading-none pr-2">
+                <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate tracking-tight max-w-[120px]">
+                  {profile?.full_name || user.email?.split("@")[0]}
+                </span>
+                <span className="text-[10px] font-black text-primary uppercase tracking-[0.15em] mt-0.5">Admin</span>
+              </div>
+              <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent className="w-64 mt-2 rounded-2xl shadow-2xl border-primary/20 bg-card/95 backdrop-blur-xl p-2">
+              <DropdownMenuLabel className="px-3 py-3">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-xs font-black text-foreground uppercase tracking-wider truncate">
+                    {profile?.full_name || user.email?.split("@")[0]}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground font-mono truncate">{user.email}</p>
+                </div>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator className="bg-primary/10" />
+              <DropdownMenuItem onClick={() => setActiveTab("overview")} className="rounded-xl px-3 py-2.5 my-1 hover:bg-primary/10 transition-colors cursor-pointer group">
+                <LayoutGrid className="mr-3 h-4 w-4 text-primary transition-transform group-hover:scale-110" />
+                <span className="font-bold text-sm">Command Center</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("settings")} className="rounded-xl px-3 py-2.5 my-1 hover:bg-primary/10 transition-colors cursor-pointer group">
+                <Settings className="mr-3 h-4 w-4 text-primary transition-transform group-hover:rotate-45" />
+                <span className="font-bold text-sm">Account Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-primary/10" />
+
+              <DropdownMenuItem onClick={handleSignOut} className="rounded-xl px-3 py-2.5 my-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer">
+                <LogOut className="mr-3 h-4 w-4" />
+                <span className="font-black uppercase tracking-widest text-[10px]">Terminate Session</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className={`flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 ${profile?.role === 'admin' && activeTab === 'overview' ? 'hidden' : ''}`}>
           {showTabs && (
-            <PillTabs items={DASHBOARD_TABS} active={activeTab} onChange={setActiveTab} className="mb-0" />
+            <div className="flex items-center gap-4">
+              {profile?.role === 'admin' && activeTab !== 'overview' && (
+                <button 
+                  onClick={() => setActiveTab("overview")}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-secondary hover:bg-secondary/80 rounded-xl border border-border transition-all group"
+                >
+                  <ArrowLeft className="w-4 h-4 text-primary group-hover:-translate-x-1 transition-transform" />
+                  Back
+                </button>
+              )}
+              <PillTabs 
+                items={profile?.role === 'admin' && activeTab !== 'overview' 
+                  ? DASHBOARD_TABS.filter(t => t.id === activeTab) 
+                  : DASHBOARD_TABS
+                } 
+                active={activeTab} 
+                onChange={setActiveTab} 
+                className="mb-0" 
+              />
+            </div>
           )}
 
           <div className="flex items-center gap-3">
@@ -197,15 +293,33 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
             </Badge>
           </div>
         </div>
+        
+        {/* Admin: Overview Tab */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="overview" className="animate-in slide-in-from-bottom-2 duration-500">
+            <AdminOverview onNavigate={setActiveTab} />
+          </TabsContent>
+        ) : null}
 
-        {/* Admin: Rooms Tab */}
+        {/* Admin: Rooms Tab (Create Only) */}
         {profile?.role === 'admin' ? (
           <TabsContent value="rooms" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground">Room Management</h2>
-              <p className="text-sm text-muted-foreground">Create rooms and generate codes for students.</p>
+              <h2 className="text-2xl font-semibold text-foreground italic uppercase italic font-black">Create Room + Event Name</h2>
+              <p className="text-sm text-muted-foreground">Initialize specific room locations and event designations.</p>
             </div>
-            <RoomList />
+            <RoomList view="create" />
+          </TabsContent>
+        ) : null}
+
+        {/* Admin: Room Registry Tab (List Only) */}
+        {profile?.role === 'admin' ? (
+          <TabsContent value="room_registry" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-semibold text-foreground italic uppercase italic font-black">Room Registry</h2>
+              <p className="text-sm text-muted-foreground">Monitor and manage all active attendance sessions.</p>
+            </div>
+            <RoomList view="list" />
           </TabsContent>
         ) : null}
 
@@ -216,7 +330,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
               <h2 className="text-2xl font-semibold text-foreground">Attendance Logs</h2>
               <p className="text-sm text-muted-foreground">View real-time attendance and fines.</p>
             </div>
-            <AttendanceLogs roomId={profile?.last_room_id || ""} />
+            <AttendanceLogs roomId={profile?.last_room_id || ""} view={activeView} />
           </TabsContent>
         ) : null}
 
@@ -289,6 +403,13 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
                 }}
               />
             )}
+          </TabsContent>
+        ) : null}
+
+        {/* 5b. Join Room Tab (Student) */}
+        {profile?.role === 'student' ? (
+          <TabsContent value="join" className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
+            <JoinRoom />
           </TabsContent>
         ) : null}
 

@@ -47,11 +47,16 @@ export function Navbar({ user }: { user: any }) {
         {/* Logo */}
         <a href="/#home" className="flex items-center gap-3 group transition-all">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-[0_0_15px_rgba(108,71,255,0.3)] group-hover:scale-110 transition-transform">
-            <span className="text-base font-black text-primary-foreground">D</span>
+            <span className="text-base font-black text-primary-foreground">F</span>
           </div>
-          <span className="text-xl font-black tracking-tight text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            {siteConfig.name}
-          </span>
+          <div className="flex flex-col items-start gap-0">
+            <span className="text-2xl font-black tracking-widest text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent uppercase">
+              {siteConfig.name}
+            </span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight leading-none">
+              {siteConfig.description}
+            </span>
+          </div>
         </a>
 
         {/* Desktop Nav */}
