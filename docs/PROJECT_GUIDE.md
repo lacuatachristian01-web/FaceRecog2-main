@@ -15,53 +15,55 @@ This system uses a simplified, high-security authentication model optimized for 
 
 ---
 
-## 📸 Facial Recognition Workflow
-### 1. Registration
-During signup, students are prompted to register their face. The system:
-- Captures a high-resolution face image via the webcam.
-- Processes the image into a **128-dimensional facial descriptor**.
-- Stores only the numeric descriptor (embedding) in Supabase, ensuring maximum privacy (no raw images are stored).
+## 📸 Facial Recognition Workflow (v2.0)
+### 1. Enrollment (GCash-Style)
+During signup, students undergo a premium biometric registration process:
+- **Live Mesh Scanning**: A real-time face mesh overlay ensures the user is correctly positioned.
+- **Manual Shutter**: Users trigger the capture manually when ready, improving photo quality.
+- **Precision Cropping**: An interactive UI allows users to zoom and drag their photo to center their face perfectly.
+- **Descriptor Generation**: The system processes the image into a **128-dimensional facial descriptor**.
+- **Security Check**: Before saving, the system performs a **biometric duplication check** against all registered users to prevent multiple accounts using the same face.
 
 ### 2. Verification Terminal
 The attendance terminal uses real-time processing:
 - Detects faces in the video stream.
 - Compares the live face against all registered students in the room.
 - Uses a distance-based matching algorithm (threshold: 0.6) to identify the student.
-- Automatically logs "Time In" or "Time Out" based on existing records for the day.
+- Automatically logs "Time In" or "Time Out" based on the room's AM/PM scheduling windows.
 
 ---
 
 ## 🛠️ Administrator Features
-### Room Management
-- **Room Creation**: Admins create rooms with unique 6-character access codes.
-- **Scheduling**: Set specific **Start** and **End Times** for each session.
-- **Auto-Fines**: The system automatically calculates a **₱50 fine** for students who arrive after the scheduled Start Time.
+### Room & Session Management
+- **Complex Scheduling**: Admins can create rooms with specific **AM and PM sessions**, each with its own "Time In" and "Time Out" windows.
+- **Access Control**: Generates unique 6-character access codes. Admins must **approve** students who join via code for added security.
+- **Auto-Fines**: The system calculates fines (e.g., **₱50**) for students who arrive after the "Time In" deadline or skip required sessions.
 
-### Attendance Dashboard
-- **Real-time Logs**: View who is currently present.
-- **Student Profiles**: Display Full Name, Student ID, and Course/Year.
-- **Event Tracking**: Automatic labeling of events like "Late" or "Active".
-- **Fine Tracking**: Centralized view of total fines accumulated per session.
+### Attendance Analytics
+- **Live Monitoring**: Real-time view of attendance logs with student profile details.
+- **Absent Tracking**: Automatically identifies students who are expected but have not yet timed in.
+- **Manual Corrections**: Admins can edit or delete attendance records to fix manual errors.
+- **Fine Management**: Centralized view of total fines accumulated per session.
 
 ---
 
 ## 🎓 Student Features
 ### Join & Participate
-- **Room Entry**: Students enter the 6-character code provided by the Admin.
-- **Dashboard**: A personalized view showing current attendance status.
+- **Room Entry**: Students enter the 6-character code and wait for Admin approval.
+- **Dashboard**: A personalized view showing current attendance status for the day.
 - **History**: A detailed log of all past attendance sessions, including timestamps and any incurred fines.
 
 ---
 
 ## 🗄️ Database Schema (Public)
-- **profiles**: Extended user data (Full Name, Student ID (e.g., 231-0726), Course/Year, Face Descriptors).
-- **rooms**: Managed sessions (Name, Code, Admin ID, Schedule).
-- **room_participants**: Relationship between students and the rooms they've joined.
+- **profiles**: Extended user data (Full Name, Student ID, Course/Year, Face Descriptors, Cropped Face Photo).
+- **rooms**: Managed sessions (Name, Code, Admin ID, AM/PM Windows, Event Date).
+- **room_participants**: Relationship between students and rooms, including approval status.
 - **attendance**: Logging table (Time In, Time Out, Events, Fines).
 
 ---
 
 ## ⚙️ Technical Stack
-- **Frontend**: Next.js 15+ (App Router), Tailwind CSS, Shadcn UI.
+- **Frontend**: Next.js 15+ (App Router), Tailwind CSS 4, Shadcn UI, Framer Motion.
 - **Backend**: Supabase (Auth, Database, RLS).
 - **AI Engine**: face-api.js (SSD Mobilenet v1, Face Landmark 68, Face Recognition).

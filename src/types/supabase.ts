@@ -81,6 +81,8 @@ export type Database = {
           pm_time_in_end: string | null
           pm_time_out_start: string | null
           pm_time_out_end: string | null
+          event_type: string | null
+          event_date: string | null
         }
         Insert: {
           id?: string
@@ -103,6 +105,8 @@ export type Database = {
           pm_time_in_end?: string | null
           pm_time_out_start?: string | null
           pm_time_out_end?: string | null
+          event_type?: string | null
+          event_date?: string | null
         }
         Update: {
           id?: string
@@ -125,6 +129,8 @@ export type Database = {
           pm_time_in_end?: string | null
           pm_time_out_start?: string | null
           pm_time_out_end?: string | null
+          event_type?: string | null
+          event_date?: string | null
         }
         Relationships: [
           {

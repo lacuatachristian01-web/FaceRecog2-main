@@ -14,7 +14,8 @@ import {
   ArrowRight,
   Upload,
   Image as ImageIcon,
-  Camera
+  Camera,
+  AlertTriangle
 } from "lucide-react";
 import { registerFace } from "@/services/face";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,9 +29,10 @@ interface FaceRegistrationProps {
   initialMode?: 'camera' | 'upload' | null;
   initialImage?: string | null;
   isReplacing?: boolean;
+  registrationType?: 'biometric' | 'simple';
 }
 
-export function FaceRegistration({ onSuccess, initialMode, initialImage, isReplacing }: FaceRegistrationProps) {
+export function FaceRegistration({ onSuccess, initialMode, initialImage, isReplacing, registrationType = 'biometric' }: FaceRegistrationProps) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,12 +49,11 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [autoCaptureProgress, setAutoCaptureProgress] = useState(0);
   const [hasFailedRegistration, setHasFailedRegistration] = useState(false);
-  const detectionStartTime = useRef<number | null>(null);
-  const [croppingImage, setCroppingImage] = useState<string | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0 });
+  const [croppingImage, setCroppingImage] = useState<string | null>(null);
+  const detectionStartTime = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const AUTO_CAPTURE_DELAY = 800;
@@ -76,64 +77,13 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     loadModels();
   }, []);
 
-  // 1b. Handle initial mode bypass
+  // 1b. Handle initial camera start
   useEffect(() => {
-    if (isModelLoaded) {
-      if (initialImage) {
-        // Direct process pre-loaded image
-        const processPreloaded = async () => {
-          setIsRegistering(true);
-          const img = new Image();
-          img.onload = async () => {
-            const detection = await faceapi
-              .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-              .withFaceLandmarks()
-              .withFaceDescriptor();
-
-            if (detection) {
-              // AI-Powered Smart Face Cropping
-              const { x, y, width: boxWidth, height: boxHeight } = detection.detection.box;
-              
-              // Expand the box slightly for a nice headshot (40% padding)
-              const padding = 0.4;
-              const cropX = Math.max(0, x - boxWidth * padding);
-              const cropY = Math.max(0, y - boxHeight * (padding + 0.1)); // Shift up slightly for head
-              const cropWidth = Math.min(img.width - cropX, boxWidth * (1 + padding * 2));
-              const cropHeight = Math.min(img.height - cropY, boxHeight * (1 + padding * 2));
-              
-              // Make it a square
-              const size = Math.min(cropWidth, cropHeight);
-              
-              const canvas = document.createElement("canvas");
-              canvas.width = 400;
-              canvas.height = 400;
-              const ctx = canvas.getContext("2d");
-              if (ctx) {
-                ctx.drawImage(img, cropX, cropY, size, size, 0, 0, 400, 400);
-                const croppedBase64 = canvas.toDataURL("image/jpeg", 0.9);
-                setCapturedImage(croppedBase64);
-              } else {
-                setCapturedImage(initialImage);
-              }
-              setDescriptor(Array.from(detection.descriptor));
-            }
-            
-            setCroppingImage(initialImage);
-            setStep("cropping");
-            setIsRegistering(false);
-          };
-          img.src = initialImage;
-        };
-        processPreloaded();
-      } else if (initialMode === 'camera') {
-        startVideo();
-      } else if (initialMode === 'upload') {
-        fileInputRef.current?.click();
-      }
+    if (isModelLoaded && initialMode === 'camera') {
+      startVideo();
     }
-  }, [isModelLoaded, initialMode, initialImage]);
+  }, [isModelLoaded, initialMode]);
 
-  // 2. Start webcam
   const startVideo = async () => {
     setError(null);
     try {
@@ -162,91 +112,162 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     setIsStreaming(false);
   };
 
-  const captureManual = async () => {
-    const video = videoRef.current;
-    if (!video) return;
+  // 2. Real-time Detection Loop (ONLY for biometric mode)
+  useEffect(() => {
+    let interval: any;
+    if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
+      interval = setInterval(async () => {
+        if (!videoRef.current || videoRef.current.readyState < 2) return;
+        
+        const video = videoRef.current;
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320, // Better balance for finding faces
+            scoreThreshold: 0.15 // Very sensitive to low-light/distant faces
+          }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
 
+        if (detection) {
+          setFaceDetected(true);
+          
+          const { x, y, width, height } = detection.detection.box;
+          const videoWidth = video.videoWidth;
+          const videoHeight = video.videoHeight;
+          const centerX = x + width / 2;
+          const centerY = y + height / 2;
+          
+          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.15; // More forgiving
+          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.15;
+          
+          if (isCenteredX && isCenteredY) {
+            setIsCorrectPosture(true);
+            setGuideMessage("Verified! Processing...");
+            
+            setAutoCaptureProgress(prev => {
+              const next = prev + 35; 
+              if (next >= 100) {
+                setTimeout(() => {
+                  clearInterval(interval);
+                  handleAutoCapture(detection);
+                }, 0);
+                return 100;
+              }
+              return next;
+            });
+          } else {
+            setIsCorrectPosture(false);
+            setGuideMessage("Center your face in the frame");
+            setAutoCaptureProgress(0);
+          }
+        } else {
+          setFaceDetected(true); // Don't hide the "Face Detected" indicator too aggressively
+          setFaceDetected(false);
+          setIsCorrectPosture(false);
+          setGuideMessage("Finding face...");
+          setAutoCaptureProgress(0);
+        }
+      }, 80); // Balanced interval for CPU reliability
+    }
+    return () => clearInterval(interval);
+  }, [isStreaming, isModelLoaded, step, registrationType]);
+
+  const handleCapture = async () => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
+    
     if (ctx) {
+      // Mirror the video for capture
+      ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0);
       const imageData = canvas.toDataURL("image/jpeg", 0.9);
       
-      setIsRegistering(true);
-      try {
-        const img = new Image();
-        img.onload = async () => {
-          const detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptor();
+      // Try to detect face for biometric purposes
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
 
-          if (detection) {
-            setDescriptor(Array.from(detection.descriptor));
-          }
-          
-          setCroppingImage(imageData);
-          setStep("cropping");
-          setIsRegistering(false);
-          stopVideo();
-        };
-        img.src = imageData;
-      } catch (err) {
-        toast.error("Failed to capture photo");
+      if (detection) {
+        setDescriptor(Array.from(detection.descriptor));
+      }
+
+      setCroppingImage(imageData);
+      setStep("cropping");
+      stopVideo();
+    }
+  };
+
+  const handleAutoCapture = async (detection: any) => {
+    if (!videoRef.current) return;
+    setIsRegistering(true);
+    
+    const video = videoRef.current;
+    const canvas = document.createElement("canvas");
+    const targetSize = 256; 
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+    const ctx = canvas.getContext("2d");
+    
+    if (ctx) {
+      // Mirror crop
+      ctx.scale(-1, 1);
+      
+      // Calculate crop from detection box
+      const { x, y, width, height } = detection.detection.box;
+      
+      // Safety check for valid dimensions
+      if (width <= 0 || height <= 0 || video.videoWidth <= 0) {
+        console.warn("[FaceRegistration] Invalid dimensions detected for capture:", { width, height, videoWidth: video.videoWidth });
+        setIsRegistering(false);
+        setStep("scanning");
+        return;
+      }
+
+      const padding = 0.4;
+      const size = Math.max(1, Math.min(width * (1 + padding * 2), height * (1 + padding * 2)));
+      const cropX = Math.max(0, x - width * padding);
+      const cropY = Math.max(0, y - height * padding);
+
+      ctx.drawImage(video, cropX, cropY, size, size, -targetSize, 0, targetSize, targetSize);
+      const imageData = canvas.toDataURL("image/jpeg", 0.6); // Low quality for fast upload
+      
+      setCapturedImage(imageData);
+      setDescriptor(Array.from(detection.descriptor));
+      stopVideo();
+      
+      // Automatic confirmation
+      try {
+        await registerFace(Array.from(detection.descriptor), imageData);
+        setStep("success");
+        toast.success("Identity verified and registered!");
+        if (onSuccess) {
+          setTimeout(() => onSuccess(), 2000);
+        }
+      } catch (err: any) {
+        const msg = err.message || "Failed to register face";
+        setRegistrationError(msg);
+        toast.error(msg);
+        setHasFailedRegistration(true);
+        
+        // If it's a duplicate, auto-reset after a delay to let them try again
+        if (msg.toLowerCase().includes("already registered")) {
+          // Handled by UI, but we stay in captured step
+          setStep("captured");
+        } else {
+          setStep("captured");
+        }
+      } finally {
         setIsRegistering(false);
       }
     }
   };
-  const handleManualCrop = () => {
-    if (!croppingImage) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = 300;
-    canvas.height = 300;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const img = new Image();
-    img.onload = () => {
-      // Clear canvas
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, 400, 400);
-
-      // Calculate source and destination
-      const displaySize = 288; // size of the preview box
-      const scale = (img.width / displaySize) / zoom;
-      
-      const sourceX = (img.width / 2 - position.x * scale) - (img.width / (2 * zoom));
-      const sourceY = (img.height / 2 - position.y * scale) - (img.height / (2 * zoom));
-      const sourceSize = img.width / zoom;
-
-      ctx.drawImage(img, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 300, 300);
-      setCapturedImage(canvas.toDataURL("image/jpeg", 0.7));
-      setStep("captured");
-    };
-    img.src = croppingImage;
-  };
-
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    setIsDragging(true);
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    dragStart.current = { x: clientX - position.x, y: clientY - position.y };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging) return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    setPosition({
-      x: clientX - dragStart.current.x,
-      y: clientY - dragStart.current.y
-    });
-  };
-
-  const handleMouseUp = () => setIsDragging(false);
 
   const handleVideoRef = (node: HTMLVideoElement | null) => {
     videoRef.current = node;
@@ -255,16 +276,19 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     }
   };
 
+  const handleReEdit = () => {
+    setHasFailedRegistration(false);
+    setRegistrationError(null);
+    setStep("cropping");
+  };
+
   const handleRetake = () => {
     setCapturedImage(null);
     setDescriptor(null);
     setHasFailedRegistration(false);
-    if (initialMode === 'upload' || initialImage) {
-      fileInputRef.current?.click();
-    } else {
-      setStep("scanning");
-      startVideo();
-    }
+    setRegistrationError(null);
+    setStep("scanning");
+    startVideo();
   };
 
   const handleConfirm = async () => {
@@ -293,50 +317,53 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsRegistering(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const img = new Image();
-        img.onload = async () => {
-          const detection = await faceapi
-            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptor();
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const imageData = event.target?.result as string;
+      setCroppingImage(imageData);
+      setStep("cropping");
+      
+      // Try to detect face in the uploaded image
+      const img = new Image();
+      img.onload = async () => {
+        const detection = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
 
-          if (detection) {
-            setDescriptor(Array.from(detection.descriptor));
-            // Smart Crop
-            const { x, y, width: boxWidth, height: boxHeight } = detection.detection.box;
-            const padding = 0.4;
-            const cropX = Math.max(0, x - boxWidth * padding);
-            const cropY = Math.max(0, y - boxHeight * (padding + 0.1));
-            const size = Math.min(boxWidth * (1 + padding * 2), boxHeight * (1 + padding * 2));
-            
-            const canvas = document.createElement("canvas");
-            canvas.width = 400;
-            canvas.height = 400;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              ctx.drawImage(img, cropX, cropY, size, size, 0, 0, 400, 400);
-              setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
-            } else {
-              setCapturedImage(event.target?.result as string);
-            }
-          } else {
-            setCapturedImage(event.target?.result as string);
-          }
-
-          setStep("captured");
-          setIsRegistering(false);
-        };
-        img.src = event.target?.result as string;
+        if (detection) {
+          setDescriptor(Array.from(detection.descriptor));
+        }
       };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      toast.error("Failed to process image");
-      setIsRegistering(false);
-    }
+      img.src = imageData;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const applyCrop = () => {
+    if (!croppingImage) return;
+    
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 400;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+      
+      if (ctx) {
+        // Simple crop logic based on zoom and position
+        // In a real app, you'd use a library like react-easy-crop
+        // Here we simulate it with the current zoom/pos state
+        const sourceSize = Math.min(img.width, img.height) / zoom;
+        const sourceX = (img.width - sourceSize) / 2 - (crop.x * (img.width / 100));
+        const sourceY = (img.height - sourceSize) / 2 - (crop.y * (img.height / 100));
+        
+        ctx.drawImage(img, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 400, 400);
+        setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
+        setStep("captured");
+      }
+    };
+    img.src = croppingImage;
   };
 
   return (
@@ -360,7 +387,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   <span className="text-5xl font-black text-blue-600">AS</span>
                 </div>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">
-                  Facial Recognition & Monitoring Access System
+                  {registrationType === 'biometric' 
+                    ? "Facial Recognition & Monitoring Access System"
+                    : "Profile Photo Management (v2.1)"}
                 </p>
                 <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-800 to-transparent mt-4" />
               </div>
@@ -372,235 +401,330 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-white">Face Recognition</h2>
+                  <h2 className="text-2xl font-bold text-white">
+                    {registrationType === 'biometric' ? "Face Recognition" : "Profile Photo"}
+                  </h2>
                   <p className="text-zinc-500 text-sm leading-relaxed max-w-[280px] mx-auto">
-                    Complete these steps to enroll your facial biometrics.
+                    {registrationType === 'biometric' 
+                      ? "Complete these steps to enroll your facial biometrics."
+                      : "Update your profile image for your identification card."}
                   </p>
                 </div>
               </div>
 
-              {/* Guide Points */}
-              <div className="grid grid-cols-1 gap-4 px-4">
-                {[
-                  { icon: <Scan className="w-4 h-4" />, text: "Center your face in the camera frame" },
-                  { icon: <RefreshCcw className="w-4 h-4" />, text: "Ensure your environment is well-lit" },
-                  { icon: <User className="w-4 h-4" />, text: "Remove glasses, masks or hats" },
-                ].map((item, i) => (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    key={i}
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
-                      {item.icon}
-                    </div>
-                    <span className="text-xs text-zinc-300 font-medium">{item.text}</span>
-                  </motion.div>
-                ))}
-              </div>
+              {registrationType === 'biometric' && (
+                <div className="grid grid-cols-1 gap-4 px-4">
+                  {[
+                    { icon: <Scan className="w-4 h-4" />, text: "Center your face in the camera frame" },
+                    { icon: <RefreshCcw className="w-4 h-4" />, text: "Ensure your environment is well-lit" },
+                    { icon: <User className="w-4 h-4" />, text: "Remove glasses, masks or hats" },
+                  ].map((item, i) => (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      key={i}
+                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
+                        {item.icon}
+                      </div>
+                      <span className="text-xs text-zinc-300 font-medium">{item.text}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
 
-              <div className="flex flex-col gap-3 pt-4">
+
+
+              <div className="flex flex-col gap-4 pt-4 px-4">
                 <Button 
                   onClick={startVideo}
-                  className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg shadow-xl shadow-blue-900/20"
+                  className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-lg shadow-xl shadow-blue-900/20"
                   disabled={!isModelLoaded}
                 >
-                  {isModelLoaded ? (
-                    <div className="flex items-center gap-2">
-                      <span>Start Registration</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Loading Models...</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {registrationType === 'biometric' ? <Scan className="w-6 h-6" /> : <Camera className="w-6 h-6" />}
+                    <span>{registrationType === 'biometric' ? "Start Enrollment" : "Take Photo"}</span>
+                  </div>
                 </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-white/5" />
-                  </div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest">
-                    <span className="bg-[#0c0c0e] px-2 text-zinc-600">Or</span>
-                  </div>
-                </div>
+                
+                {registrationType === 'simple' && (
+                  <Button 
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="outline"
+                    className="w-full h-16 rounded-2xl bg-white/5 border-white/10 hover:bg-white/10 text-white font-black text-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ImageIcon className="w-6 h-6 text-zinc-400" />
+                      <span>Upload Photo</span>
+                    </div>
+                  </Button>
+                )}
 
                 <input 
                   type="file" 
                   ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
                   onChange={handleFileUpload} 
+                  accept="image/*" 
+                  className="hidden" 
                 />
-                
-                <Button 
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-14 rounded-2xl border-white/10 bg-transparent hover:bg-white/5 text-white font-bold"
-                  disabled={!isModelLoaded || isRegistering}
-                >
-                  <div className="flex items-center gap-2">
-                    <Upload className="w-5 h-5 text-zinc-400" />
-                    <span>Upload Photo</span>
-                  </div>
-                </Button>
               </div>
             </motion.div>
           )}
 
-          {/* STEP 2: CAMERA */}
           {step === "scanning" && (
             <motion.div 
               key="scanning"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-8"
+              className="space-y-12 flex flex-col items-center"
             >
-              <div className="text-center space-y-1">
-                <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">
-                  Take a Photo
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+                  {registrationType === 'biometric' ? "Verify Identity" : "Camera"}
                 </h2>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                  Selfie Mode
-                </p>
-              </div>
-
-              <div className="relative w-full flex flex-col items-center justify-center py-4">
-                <div className="relative w-72 h-72 rounded-2xl border-2 border-white/20 bg-zinc-950 overflow-hidden shadow-[0_0_50px_rgba(255,255,255,0.05)]">
-                  <video
-                    ref={handleVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover scale-x-[-1]"
-                  />
-                </div>
-              </div>
-
-              <div className="text-center space-y-8">
-                <div className="flex flex-col items-center gap-6">
-                  <div className={cn(
-                    "text-[10px] uppercase tracking-[0.3em] font-bold transition-colors",
-                    isCorrectPosture ? "text-blue-400" : "text-zinc-600"
-                  )}>
-                    {guideMessage}
+                {registrationType === 'biometric' && (
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
+                      Keep your head within the circle
+                    </p>
                   </div>
-                  
-                  <button 
-                    onClick={captureManual}
-                    disabled={isRegistering}
-                    className="w-20 h-20 rounded-full border-4 border-white/20 p-1 bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center active:scale-95"
-                  >
-                    <div className="w-full h-full rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,0.4)] flex items-center justify-center">
-                      <Camera className="w-8 h-8 text-black" />
+                )}
+              </div>
+
+              <div className="relative w-full flex flex-col items-center justify-center">
+                {registrationType === 'biometric' ? (
+                  /* BIOMETRIC MODE: Circular GCash Style Frame */
+                  <div className="relative w-80 h-80">
+                    {/* Progress Ring SVG */}
+                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-30">
+                      <circle
+                        cx="160"
+                        cy="160"
+                        r="150"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        fill="transparent"
+                        className="text-white/5"
+                      />
+                      <motion.circle
+                        cx="160"
+                        cy="160"
+                        r="150"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        strokeDasharray="942"
+                        initial={{ strokeDashoffset: 942 }}
+                        animate={{ 
+                          strokeDashoffset: 942 - (942 * (autoCaptureProgress / 100)),
+                          color: isCorrectPosture ? "#10b981" : "#3b82f6"
+                        }}
+                        strokeLinecap="round"
+                        fill="transparent"
+                        className="transition-all duration-500"
+                      />
+                    </svg>
+
+                    {/* Video Container (Circular) */}
+                    <div className={cn(
+                      "absolute inset-4 rounded-full border-4 overflow-hidden bg-zinc-950 transition-all duration-500 z-20",
+                      faceDetected ? "border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.3)]" : "border-white/10"
+                    )}>
+                      <video
+                        ref={handleVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover scale-x-[-1]"
+                      />
+
+                      {/* Face Silhouette Guide */}
+                      <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
+                        <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] text-white">
+                          <path 
+                            d="M50,15 C35,15 25,28 25,45 C25,62 35,85 50,85 C65,85 75,62 75,45 C75,28 65,15 50,15 Z" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="1" 
+                            strokeDasharray="4 4"
+                          />
+                          <path d="M40,40 Q40,38 42,38 Q44,38 44,40" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M56,40 Q56,38 58,38 Q60,38 60,40" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M50,48 L50,58 L45,62" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M40,70 Q50,75 60,70" fill="none" stroke="currentColor" strokeWidth="1" />
+                        </svg>
+                      </div>
+                      
+                      {/* Scanning Line Effect */}
+                      <AnimatePresence>
+                        {faceDetected && (
+                          <motion.div 
+                            initial={{ top: "-10%" }}
+                            animate={{ top: "110%" }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            className="absolute left-0 w-full h-20 bg-gradient-to-b from-transparent via-blue-500/20 to-transparent pointer-events-none border-t border-blue-500/40"
+                          />
+                        )}
+                      </AnimatePresence>
                     </div>
-                  </button>
+
+                    {/* Corner Accents */}
+                    <div className="absolute -top-2 -left-2 w-10 h-10 border-t-4 border-l-4 border-blue-600 rounded-tl-3xl z-40 opacity-50" />
+                    <div className="absolute -top-2 -right-2 w-10 h-10 border-t-4 border-r-4 border-blue-600 rounded-tr-3xl z-40 opacity-50" />
+                    <div className="absolute -bottom-2 -left-2 w-10 h-10 border-b-4 border-l-4 border-blue-600 rounded-bl-3xl z-40 opacity-50" />
+                    <div className="absolute -bottom-2 -right-2 w-10 h-10 border-b-4 border-r-4 border-blue-600 rounded-br-3xl z-40 opacity-50" />
+                  </div>
+                ) : (
+                  /* SIMPLE MODE: Standard Rectangular Camera */
+                  <div className="relative w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden border-4 border-white/10 bg-zinc-950 shadow-2xl">
+                    <video
+                      ref={handleVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover scale-x-[-1]"
+                    />
+                    
+                    {/* Subtle Grid Lines like a real camera */}
+                    <div className="absolute inset-0 pointer-events-none opacity-20">
+                      <div className="absolute top-1/3 w-full h-[1px] bg-white/30" />
+                      <div className="absolute top-2/3 w-full h-[1px] bg-white/30" />
+                      <div className="absolute left-1/3 h-full w-[1px] bg-white/30" />
+                      <div className="absolute left-2/3 h-full w-[1px] bg-white/30" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-center w-full max-w-[300px] space-y-10">
+                <div className="space-y-3">
+                  {registrationType === 'biometric' && (
+                    <motion.div 
+                      key={guideMessage}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "text-sm font-black uppercase tracking-[0.2em] transition-all italic",
+                        faceDetected ? "text-blue-400" : "text-zinc-500"
+                      )}
+                    >
+                      {guideMessage}
+                    </motion.div>
+                  )}
+                  
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                    {registrationType === 'biometric' 
+                      ? "Look directly at the camera and avoid blinking for a second."
+                      : "Tap the shutter to capture"}
+                  </p>
+                </div>
+                
+                <div className="flex flex-col gap-4 w-full">
+                  {registrationType === 'simple' && (
+                    <div className="flex items-center justify-center gap-4">
+                      <Button 
+                        onClick={handleCapture}
+                        className="w-20 h-20 rounded-full bg-white hover:bg-zinc-200 border-8 border-blue-600/20 shadow-2xl flex items-center justify-center"
+                      >
+                        <div className="w-12 h-12 rounded-full border-4 border-blue-600" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {registrationType === 'biometric' && (
+                    <div className="h-10 flex items-center justify-center bg-white/5 rounded-2xl border border-white/10 px-6">
+                      <Loader2 className="w-3 h-3 animate-spin text-blue-500 mr-3" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Auto-Capture Ready</span>
+                    </div>
+                  )}
+
+
 
                   <Button 
                     variant="ghost" 
                     onClick={() => { stopVideo(); setStep("intro"); }}
-                    className="text-zinc-500 hover:text-white"
+                    className="text-zinc-600 hover:text-white uppercase text-[10px] font-black tracking-widest"
                   >
-                    Cancel
+                    Cancel Session
                   </Button>
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* STEP: CROPPING */}
+
+          {/* STEP 2b: CROPPING */}
           {step === "cropping" && croppingImage && (
             <motion.div 
               key="cropping"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-8"
+              className="space-y-8 flex flex-col items-center"
             >
               <div className="text-center space-y-1">
-                <h2 className="text-xl font-bold text-white tracking-tight leading-none">
-                  Adjust Photo
-                </h2>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                  Drag to center & Zoom to scale
-                </p>
+                <h2 className="text-xl font-bold text-white tracking-tight italic">Adjust Photo</h2>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Drag to position & scale</p>
               </div>
 
-              <div className="relative w-full flex flex-col items-center gap-8">
-                {/* Crop Box */}
-                <div 
-                  className="relative w-72 h-72 rounded-2xl border-2 border-blue-500/50 bg-zinc-950 overflow-hidden cursor-move touch-none shadow-[0_0_50px_rgba(59,130,246,0.1)]"
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
-                  onTouchStart={handleMouseDown}
-                  onTouchMove={handleMouseMove}
-                  onTouchEnd={handleMouseUp}
+              <div className="relative w-80 h-80 rounded-2xl border-4 border-white/10 bg-zinc-900 overflow-hidden shadow-2xl group cursor-move">
+                <motion.div
+                  drag
+                  dragConstraints={{ left: -100, right: 100, top: -100, bottom: 100 }}
+                  onDrag={(e, info) => setCrop({ x: info.offset.x, y: info.offset.y })}
+                  className="w-full h-full flex items-center justify-center"
                 >
                   <img 
                     src={croppingImage} 
-                    alt="To Crop"
-                    className="absolute max-w-none pointer-events-none select-none transition-transform duration-75"
-                    style={{
-                      width: '100%',
-                      transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-                      transformOrigin: 'center'
-                    }}
+                    style={{ transform: `scale(${zoom})` }}
+                    className="max-w-none w-full h-auto"
+                    alt="Cropping"
                   />
-                  {/* Grid Overlay */}
-                  <div className="absolute inset-0 border border-white/5 pointer-events-none">
-                    <div className="absolute inset-x-0 top-1/3 h-[0.5px] bg-white/20" />
-                    <div className="absolute inset-x-0 top-2/3 h-[0.5px] bg-white/20" />
-                    <div className="absolute inset-y-0 left-1/3 w-[0.5px] bg-white/20" />
-                    <div className="absolute inset-y-0 left-2/3 w-[0.5px] bg-white/20" />
-                  </div>
+                </motion.div>
+                
+                {/* Visual Guide Overlay */}
+                <div className="absolute inset-0 border-[30px] border-black/60 pointer-events-none">
+                  <div className="w-full h-full border-2 border-dashed border-white/20 rounded-3xl" />
                 </div>
+              </div>
 
-                {/* Zoom Slider */}
-                <div className="w-full space-y-3 px-8">
-                  <div className="flex justify-between text-[9px] font-black text-zinc-500 uppercase tracking-widest">
-                    <span>Zoom Level</span>
-                    <span className="text-blue-500">{Math.round(zoom * 100)}%</span>
-                  </div>
+              {/* Zoom Control */}
+              <div className="w-full px-8 space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Zoom</span>
                   <input 
                     type="range" 
                     min="1" 
-                    max="4" 
-                    step="0.05" 
-                    value={zoom}
+                    max="3" 
+                    step="0.1" 
+                    value={zoom} 
                     onChange={(e) => setZoom(parseFloat(e.target.value))}
-                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="flex-1 accent-blue-600 h-1 rounded-full bg-zinc-800 appearance-none"
                   />
+                  <span className="text-[10px] font-bold text-white">{zoom.toFixed(1)}x</span>
                 </div>
+              </div>
 
-                <div className="flex gap-3 w-full px-8">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      if (initialMode === 'upload') {
-                        setStep("intro");
-                      } else {
-                        setStep("scanning");
-                        startVideo();
-                      }
-                    }}
-                    className="flex-1 border-white/5 bg-white/5 hover:bg-zinc-900 text-zinc-400 h-11"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleManualCrop}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest text-[10px] h-11 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                  >
-                    Confirm Selection
-                  </Button>
-                </div>
+              <div className="flex flex-col gap-4 w-full px-4">
+                <Button 
+                  onClick={applyCrop}
+                  className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-lg uppercase italic tracking-tighter"
+                >
+                  Apply & Continue
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    setCroppingImage(null);
+                    setStep("intro");
+                  }}
+                  className="text-zinc-500 hover:text-white uppercase text-[10px] font-black tracking-widest"
+                >
+                  Cancel
+                </Button>
               </div>
             </motion.div>
           )}
@@ -623,7 +747,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               </div>
 
               {/* Box Confirmation Frame */}
-              <div className="relative w-72 h-72 rounded-2xl border-4 border-emerald-500/30 bg-zinc-900 overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.1)] flex items-center justify-center">
+              <div className="relative w-72 h-72 rounded-3xl border-4 border-emerald-500/30 bg-zinc-900 overflow-hidden shadow-[0_0_50px_rgba(16,185,129,0.1)] flex items-center justify-center">
                 {capturedImage ? (
                   <img 
                     key={capturedImage}
@@ -645,35 +769,78 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               </div>
 
               <div className="flex flex-col gap-4 w-full">
-                <Button 
-                  onClick={hasFailedRegistration ? handleRetake : handleConfirm}
-                  disabled={isRegistering}
-                  className={cn(
-                    "w-full h-16 rounded-2xl text-white font-black text-lg uppercase italic tracking-tighter",
-                    hasFailedRegistration 
-                      ? "bg-red-600 hover:bg-red-700" 
-                      : "bg-blue-600 hover:bg-blue-700"
+                {hasFailedRegistration && registrationError?.toLowerCase().includes("already registered") ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full space-y-6"
+                  >
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-5 h-5 text-red-500" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-black text-white uppercase tracking-wider italic">Security Alert</h3>
+                          <p className="text-[11px] text-zinc-400 font-medium leading-relaxed">
+                            {registrationError}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={handleRetake}
+                      className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-lg uppercase italic tracking-tighter shadow-xl shadow-blue-900/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Make Another Registration
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <Button 
+                    onClick={hasFailedRegistration ? handleRetake : handleConfirm}
+                    disabled={isRegistering}
+                    className={cn(
+                      "w-full h-16 rounded-2xl text-white font-black text-lg uppercase italic tracking-tighter",
+                      hasFailedRegistration 
+                        ? "bg-red-600 hover:bg-red-700" 
+                        : "bg-blue-600 hover:bg-blue-700"
+                    )}
+                  >
+                    {isRegistering ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : hasFailedRegistration ? (
+                      "Registration Failed"
+                    ) : isReplacing ? (
+                      "Confirm to Replace"
+                    ) : (
+                      "Confirm Photo"
+                    )}
+                  </Button>
+                )}
+
+                <div className="flex flex-col gap-2">
+                  {registrationError !== "This Face is Already Registered!" && (
+                    <Button 
+                      variant="ghost" 
+                      onClick={handleReEdit}
+                      className="text-zinc-400 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                    >
+                      <RefreshCcw className="w-3.5 h-3.5" />
+                      Re-edit Photo
+                    </Button>
                   )}
-                >
-                  {isRegistering ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : hasFailedRegistration ? (
-                    "Failed to create face, retake it"
-                  ) : isReplacing ? (
-                    "Confirm to Replace"
-                  ) : (
-                    "Confirm Photo"
-                  )}
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  onClick={handleRetake}
-                  className="text-zinc-500 hover:text-white flex items-center justify-center gap-2"
-                >
-                  <RefreshCcw className="w-4 h-4" />
-                  {initialMode === 'upload' || initialImage ? "Edit Photo" : "Retake Photo"}
-                </Button>
+                  
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleRetake}
+                    className="text-zinc-600 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Take New Photo"}
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -688,7 +855,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             >
               <div className="flex justify-center">
                 <div className="relative">
-                  <div className="w-32 h-32 rounded-full border-4 border-emerald-500/30 overflow-hidden shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                  <div className="w-32 h-32 rounded-3xl border-4 border-emerald-500/30 overflow-hidden shadow-[0_0_40px_rgba(16,185,129,0.3)]">
                     <img 
                       src={capturedImage!} 
                       alt="Registered Face" 
@@ -702,9 +869,13 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               </div>
               
               <div className="space-y-2">
-                <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">Mission Success</h2>
+                <h2 className="text-3xl font-black text-white tracking-tighter italic uppercase">
+                  {registrationType === 'biometric' ? "Mission Success" : "Photo Updated"}
+                </h2>
                 <p className="text-zinc-500 text-sm max-w-[280px] mx-auto">
-                  Your facial profile is now registered. You're cleared for automated attendance.
+                  {registrationType === 'biometric' 
+                    ? "Your facial profile is now registered. You're cleared for automated attendance."
+                    : "Your profile photo has been updated successfully."}
                 </p>
               </div>
 
@@ -720,7 +891,6 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   onClick={() => {
                     setStep("intro");
                     setCapturedImage(null);
-                    setCroppingImage(null);
                     setDescriptor(null);
                   }}
                   className="text-zinc-500 hover:text-white text-[10px] font-bold uppercase tracking-widest"
@@ -738,7 +908,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/5 blur-[120px] rounded-full" />
       
       <div className="absolute bottom-8 text-[10px] text-zinc-800 font-bold uppercase tracking-widest">
-        Biometric Enrollment Terminal v2.0
+        {registrationType === 'biometric' ? "Biometric Enrollment Terminal v2.0" : "Photo Management Terminal v2.1"}
       </div>
     </div>
   );

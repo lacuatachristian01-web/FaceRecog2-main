@@ -28,7 +28,8 @@ export async function createRoom(
   pmTimeInEnd?: string,
   pmTimeOutStart?: string,
   pmTimeOutEnd?: string,
-  sessionDate?: string
+  sessionDate?: string,
+  eventType?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -58,7 +59,8 @@ export async function createRoom(
       pm_time_in_end: pmTimeInEnd,
       pm_time_out_start: pmTimeOutStart,
       pm_time_out_end: pmTimeOutEnd,
-      event_date: sessionDate
+      event_date: sessionDate,
+      event_type: eventType
     })
     .select()
     .single();
@@ -141,7 +143,8 @@ export async function getStudentRooms() {
   const { data, error } = await supabase
     .from('room_participants')
     .select('rooms (*)')
-    .eq('student_id', user.id);
+    .eq('student_id', user.id)
+    .eq('is_approved', true);
 
   if (error) throw error;
   return data.map(d => d.rooms) || [];

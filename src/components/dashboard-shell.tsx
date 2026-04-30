@@ -189,7 +189,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
       ]
     : [
         { id: "status", label: "Dashboard", icon: Activity },
-        { id: "join", label: "Join to other room", icon: LogIn },
+        { id: "join", label: profile?.last_room_id ? "Join Another Room" : "Join Room", icon: LogIn },
       ];
 
   // Hide navigation if student is not registered
@@ -382,11 +382,8 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
                   initialMode={registrationMode}
                   initialImage={initialImageData}
                   isReplacing={!!profile?.face_image}
+                  registrationType="simple"
                 />
-              </div>
-            ) : !profile?.last_room_id ? (
-              <div className="space-y-6">
-                <JoinRoom />
               </div>
             ) : (
               <StudentAttendanceHistory 
@@ -396,7 +393,8 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
                   if (mode === 'upload') {
                     fileInputRef.current?.click();
                   } else {
-                    setRegistrationMode('camera');
+                    // Set mode to null to allow FaceRegistration to show the choice screen
+                    setRegistrationMode(mode || null);
                     setInitialImageData(null);
                     setIsRegisteringPhoto(true);
                   }

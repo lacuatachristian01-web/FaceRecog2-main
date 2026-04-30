@@ -12,51 +12,51 @@ export async function registerFace(embedding: number[], faceImage: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const hasEmbedding = embedding && Array.isArray(embedding) && embedding.length === 128;
+  console.log(`[FaceRegistration] Attempting to register face for user: ${user.id}`);
 
-  // Check for duplication only if a valid face embedding is provided
-  if (hasEmbedding) {
-  const { data: allProfiles, error: fetchError } = await supabase
-    .from('profiles')
-    .select('id, face_embedding')
-    .not('face_embedding', 'is', null)
-    .neq('id', user.id); // STOPS comparing against yourself
+  // 1. Check for duplication via RPC (Bypasses RLS on server-side)
+  if (embedding && embedding.length > 0) {
+    console.log('[FaceRegistration] Calling check_face_duplicate RPC...');
+    const { data: duplicateCheck, error: rpcError } = await supabase.rpc('check_face_duplicate', {
+      target_embedding: embedding,
+      current_user_id: user.id,
+      threshold: 0.55
+    });
 
-  if (fetchError) throw fetchError;
+    if (rpcError) {
+      console.error('[FaceRegistration] RPC Error:', rpcError);
+      throw new Error('Security Check Error: Please ensure the face duplication RPC is installed in the database.');
+    }
 
-  if (allProfiles && allProfiles.length > 0) {
-    for (const profile of allProfiles) {
-      const storedEmbedding = profile.face_embedding as number[];
-      
-      // Only compare against valid 128-dimension embeddings
-      if (Array.isArray(storedEmbedding) && storedEmbedding.length === 128) {
-        let sum = 0;
-        for (let i = 0; i < 128; i++) {
-          const diff = embedding[i] - storedEmbedding[i];
-          sum += diff * diff;
-        }
-        const distance = Math.sqrt(sum);
-        
-        // 0.40 is extremely strict. 
-        // Rejects only if the faces are nearly identical (same person).
-        if (distance < 0.40) {
-          throw new Error('Face ID already taken!!');
-        }
+    console.log('[FaceRegistration] RPC Result:', JSON.stringify(duplicateCheck));
+
+    if (duplicateCheck && Array.isArray(duplicateCheck) && duplicateCheck.length > 0) {
+      const { match_found, matched_name } = duplicateCheck[0];
+      if (match_found) {
+        console.warn(`[FaceRegistration] REJECTED: Match found with ${matched_name}`);
+        throw new Error(`SECURITY ALERT: This face is already registered to user: ${matched_name}. Duplicate registrations are strictly prohibited.`);
       }
     }
-    }
+  } else {
+    console.log('[FaceRegistration] No embedding provided, skipping duplicate check.');
   }
 
+  // 2. Proceed with registration
   const { error } = await supabase
     .from('profiles')
     .update({
-      face_embedding: hasEmbedding ? embedding : null,
+      face_embedding: embedding,
       face_image: faceImage,
       face_registered: true
     })
     .eq('id', user.id);
 
-  if (error) throw error;
+  if (error) {
+    console.error('[FaceRegistration] Update error:', error);
+    throw error;
+  }
+
+  console.log('[FaceRegistration] SUCCESS: Profile updated with facial data.');
   return { success: true };
 }
 
