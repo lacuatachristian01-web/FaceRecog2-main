@@ -26,6 +26,18 @@ export async function signInWithID(name: string, id: string) {
   return { success: true };
 }
 
+export async function signInWithEmail(email: string, password: string) {
+  const client = await createClient();
+  const { data, error } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+
+  return { success: true, user: data.user };
+}
+
 export async function signUpWithID(
   name: string, 
   id: string, 

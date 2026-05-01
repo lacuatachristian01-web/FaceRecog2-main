@@ -21,13 +21,8 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      const result = await signInWithEmail(email, password);
-
-      if (result.requiresMFA) {
-        router.push('/auth/2fa');
-      } else {
-        router.refresh();
-      }
+      await signInWithEmail(email, password);
+      router.refresh();
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred');
     } finally {
