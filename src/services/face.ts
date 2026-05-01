@@ -9,8 +9,16 @@ import { createClient } from '@/utils/supabase/server';
 
 export async function registerFace(embedding: number[], faceImage: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError) {
+    console.error('[FaceRegistration] Auth Error:', authError);
+    throw new Error('Authentication session expired. Please log in again.');
+  }
+
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
 
   console.log(`[FaceRegistration] Attempting to register face for user: ${user.id}`);
 
@@ -20,7 +28,7 @@ export async function registerFace(embedding: number[], faceImage: string) {
     const { data: duplicateCheck, error: rpcError } = await supabase.rpc('check_face_duplicate', {
       target_embedding: embedding,
       current_user_id: user.id,
-      threshold: 0.55
+      threshold: 0.45 // Stricter matching
     });
 
     if (rpcError) {
@@ -34,7 +42,7 @@ export async function registerFace(embedding: number[], faceImage: string) {
       const { match_found, matched_name } = duplicateCheck[0];
       if (match_found) {
         console.warn(`[FaceRegistration] REJECTED: Match found with ${matched_name}`);
-        throw new Error(`SECURITY ALERT: This face is already registered to user: ${matched_name}. Duplicate registrations are strictly prohibited.`);
+        throw new Error(`SECURITY ALERT: This face is already registered. Duplicate registrations are strictly prohibited.`);
       }
     }
   } else {

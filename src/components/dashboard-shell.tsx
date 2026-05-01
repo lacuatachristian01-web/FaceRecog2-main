@@ -39,7 +39,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { SecurityForm } from "./security-form"
 import { RoomList } from "./admin/room-list"
 import { JoinRoom } from "./student/join-room"
-import { AttendanceTerminal } from "./attendance/attendance-terminal"
+import { FacialAttendanceTerminal } from "./attendance/facial-attendance-terminal"
 import { FaceRegistration } from "./student/face-registration"
 import { getStudentRooms } from "@/services/room"
 import { getStudentAttendance } from "@/services/attendance"
@@ -59,6 +59,7 @@ import { AttendanceLogs } from "./admin/attendance-logs"
 import { StudentAttendanceHistory } from "./student/attendance-history"
 import { StudentRegistry } from "./admin/student-registry"
 import { AdminOverview } from "./admin/admin-overview"
+import { getAdminRooms, Room } from "@/services/room"
 
 const REPOS_PER_PAGE = 5;
 
@@ -150,7 +151,22 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
   const [isRegisteringPhoto, setIsRegisteringPhoto] = React.useState(false)
   const [registrationMode, setRegistrationMode] = React.useState<'camera' | 'upload' | null>(null)
   const [initialImageData, setInitialImageData] = React.useState<string | null>(null)
+  const [adminRooms, setAdminRooms] = React.useState<Room[]>([])
+  const [selectedTerminalRoom, setSelectedTerminalRoom] = React.useState<string>(profile?.last_room_id || "")
+  const [isSelectingRoom, setIsSelectingRoom] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if (profile?.role === 'admin') {
+      getAdminRooms().then(setAdminRooms).catch(console.error)
+    }
+  }, [profile?.role])
+
+  React.useEffect(() => {
+    if (profile?.last_room_id && !selectedTerminalRoom) {
+      setSelectedTerminalRoom(profile.last_room_id)
+    }
+  }, [profile?.last_room_id])
 
   const setActiveTab = (tabAndView: string) => {
     const [tab, view] = tabAndView.split(":")
@@ -183,7 +199,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         { id: "rooms", label: "Create Room + Event Name", icon: DoorOpen },
         { id: "room_registry", label: "Room Registry", icon: FolderKanban },
         { id: "registry", label: "Student Users", icon: Users },
-        { id: "terminal", label: "Attendance Terminal", icon: ScanFace },
+        { id: "terminal", label: "Facial Attendance", icon: ScanFace },
         { id: "logs", label: "Attendance & Fines", icon: ClipboardList },
         { id: "settings", label: "Profile", icon: User },
       ]
@@ -348,16 +364,56 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         {/* Admin: Terminal Tab */}
         {profile?.role === 'admin' ? (
           <TabsContent value="terminal" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground">Attendance Terminal</h2>
-              <p className="text-sm text-muted-foreground">Global biometric scanner for real-time attendance.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-2xl font-semibold text-foreground">Facial Attendance</h2>
+                <p className="text-sm text-muted-foreground">Global biometric scanner for real-time attendance.</p>
+              </div>
+              <button 
+                onClick={() => setIsSelectingRoom(!isSelectingRoom)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-primary/10 text-primary hover:bg-primary/20 rounded-xl border border-primary/20 transition-all group shrink-0"
+              >
+                <DoorOpen className="w-4 h-4" />
+                {selectedTerminalRoom ? "Switch Room" : "Select Room"}
+              </button>
             </div>
-            <AttendanceTerminal 
-              roomId={profile?.last_room_id || ""} 
-              userId={user.id}
-              userName={profile?.full_name || "Administrator"}
-              isGlobal 
-            />
+
+            {isSelectingRoom || !selectedTerminalRoom ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                {adminRooms.length === 0 ? (
+                  <Card className="col-span-full bg-card/20 border-dashed border-border/60 py-12 rounded-3xl">
+                    <div className="flex flex-col items-center justify-center text-center p-6">
+                      <DoorOpen className="w-12 h-12 text-muted-foreground/20 mb-4" />
+                      <p className="text-sm font-black uppercase tracking-widest">No Rooms Available</p>
+                      <button onClick={() => setActiveTab("rooms")} className="text-xs text-primary mt-2 hover:underline">Create one now</button>
+                    </div>
+                  </Card>
+                ) : (
+                  adminRooms.map((room) => (
+                    <Card 
+                      key={room.id} 
+                      className={`cursor-pointer transition-all hover:scale-[1.02] active:scale-95 rounded-3xl border-2 ${selectedTerminalRoom === room.id ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/30'}`}
+                      onClick={() => {
+                        setSelectedTerminalRoom(room.id)
+                        setIsSelectingRoom(false)
+                      }}
+                    >
+                      <CardHeader className="p-5">
+                        <CardTitle className="text-lg font-black uppercase italic truncate">{room.name}</CardTitle>
+                        <CardDescription className="text-[10px] font-bold uppercase tracking-wider line-clamp-1">{room.event_name || "Regular Session"}</CardDescription>
+                      </CardHeader>
+                    </Card>
+                  ))
+                )}
+              </div>
+            ) : (
+              <FacialAttendanceTerminal 
+                roomId={selectedTerminalRoom} 
+                userId={user.id}
+                userName={profile?.full_name || "Administrator"}
+                isGlobal 
+              />
+            )}
           </TabsContent>
         ) : null}
 

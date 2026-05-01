@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Camera, Loader2, CheckCircle2, Clock, UserCheck, AlertCircle, Scan, Sparkles, LogIn, ArrowRight, Search, Users } from "lucide-react";
-import { timeIn, timeOut, getTodayStatus, checkApproval, getRoomParticipantsWithFaces } from "@/services/attendance";
+import { timeIn, timeOut, getTodayStatus, checkApproval, getRoomParticipantsWithFaces, getAllRegisteredFaces } from "@/services/attendance";
 import { getFaceEmbedding, updateProfileImage } from "@/services/face";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,7 +20,21 @@ interface AttendanceTerminalProps {
   isGlobal?: boolean;
 }
 
-export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false }: AttendanceTerminalProps) {
+// Custom Euclidean Distance to avoid face-api.js internal throw
+function getDistance(a: number[] | Float32Array, b: number[] | Float32Array): number {
+  if (a.length !== b.length) return 1.0;
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    const diff = a[i] - b[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = false }: AttendanceTerminalProps) {
+  useEffect(() => {
+    console.log("FacialAttendanceTerminal [v2.5.1-hardened] initialized");
+  }, []);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -34,21 +48,32 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
   const [autoTriggerProgress, setAutoTriggerProgress] = useState(0);
   const [matchedStudent, setMatchedStudent] = useState<any>(null);
   const [allParticipants, setAllParticipants] = useState<any[]>([]);
+  const [allRegisteredStudents, setAllRegisteredStudents] = useState<any[]>([]);
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const detectionStartTime = useRef<number | null>(null);
-  const AUTO_TRIGGER_DELAY = 1500;
+  const AUTO_TRIGGER_DELAY = 500; // Ultra-fast auto-capture for "instant" feel
 
   useEffect(() => {
     if (roomId && userId) {
       fetchStatus();
       checkUserApproval();
+      
+      // Auto-start camera when room is selected/active
+      if (!isStreaming) {
+        startTerminal();
+      }
     }
   }, [roomId, userId]);
 
   const checkUserApproval = async () => {
     try {
       if (isGlobal) {
-        const participants = await getRoomParticipantsWithFaces(roomId);
+        const [participants, allStudents] = await Promise.all([
+          getRoomParticipantsWithFaces(roomId),
+          getAllRegisteredFaces()
+        ]);
         setAllParticipants(participants);
+        setAllRegisteredStudents(allStudents);
         setIsApproved(true); // Admin is always allowed to use the terminal
       } else {
         const approved = await checkApproval(roomId, userId);
@@ -95,27 +120,23 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
         
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        const detections = await faceapi.detectSingleFace(
-          video,
-          new faceapi.TinyFaceDetectorOptions()
-        ).withFaceLandmarks();
-
-        const displaySize = {
-          width: video.videoWidth,
-          height: video.videoHeight
-        };
         
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        const displaySize = { width: video.videoWidth, height: video.videoHeight };
         faceapi.matchDimensions(canvas, displaySize);
 
-        if (detections) {
+        if (detection) {
           setFaceDetected(true);
           
-          // Auto-trigger & Matching logic
           if (!isProcessing && status === 'idle' && isApproved !== false) {
             try {
               let targetEmbeddings = [];
               if (isGlobal) {
-                targetEmbeddings = allParticipants;
+                targetEmbeddings = allRegisteredStudents;
               } else {
                 const faceData = await getFaceEmbedding(userId);
                 if (faceData?.embedding) {
@@ -124,73 +145,75 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
               }
               
               if (targetEmbeddings.length > 0) {
-                const fullDetection = await faceapi
-                  .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                  .withFaceLandmarks()
-                  .withFaceDescriptor();
+                let bestMatch = null;
+                let minDistance = 1.0;
 
-                if (fullDetection) {
-                  let bestMatch = null;
-                  let minDistance = 1.0;
+                for (const participant of targetEmbeddings) {
+                  const storedEmbedding = participant.face_embedding;
+                  if (!storedEmbedding) continue;
 
-                  for (const participant of targetEmbeddings) {
-                    const distance = faceapi.euclideanDistance(
-                      new Float32Array(fullDetection.descriptor),
-                      new Float32Array(participant.face_embedding as number[])
-                    );
+                  const storedArray = Array.isArray(storedEmbedding) 
+                    ? storedEmbedding 
+                    : typeof storedEmbedding === 'string' 
+                      ? JSON.parse(storedEmbedding) 
+                      : null;
 
-                    if (distance < minDistance) {
-                      minDistance = distance;
-                      bestMatch = participant;
-                    }
+                  if (!storedArray || detection.descriptor.length !== storedArray.length) continue;
+
+                  const distance = getDistance(detection.descriptor, storedArray);
+                  if (distance < minDistance) {
+                    minDistance = distance;
+                    bestMatch = participant;
                   }
+                }
 
-                  // If match found
-                  if (bestMatch && minDistance < 0.45) {
-                    setMatchedStudent(bestMatch);
-                    if (!detectionStartTime.current) {
-                      detectionStartTime.current = Date.now();
-                    }
-                    const elapsed = Date.now() - detectionStartTime.current;
-                    const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
-                    setAutoTriggerProgress(progress);
+                if (bestMatch && minDistance < 0.45) {
+                  setMatchedStudent(bestMatch);
+                  if (!detectionStartTime.current) detectionStartTime.current = Date.now();
+                  
+                  const elapsed = Date.now() - detectionStartTime.current;
+                  setAutoTriggerProgress(Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100));
 
-                    if (elapsed >= AUTO_TRIGGER_DELAY) {
-                      detectionStartTime.current = null;
-                      setAutoTriggerProgress(0);
-                      
-                      // For global mode, we need to fetch today's status for the specific matched student
-                      if (isGlobal) {
-                        const sStatus = await getTodayStatus(roomId, bestMatch.id);
-                        const type = !sStatus ? 'in' : 'out';
-                        if (!(type === 'out' && sStatus?.time_out)) {
-                          // Capture image for auto-sync if missing
-                          let capturedFrame = null;
-                          if (!bestMatch.face_image) {
-                            const canvas = document.createElement("canvas");
-                            canvas.width = video.videoWidth;
-                            canvas.height = video.videoHeight;
-                            const ctx = canvas.getContext("2d");
-                            if (ctx) {
-                              ctx.scale(-1, 1);
-                              ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-                              capturedFrame = canvas.toDataURL("image/jpeg", 0.8);
-                            }
-                          }
-                          processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
-                        }
-                      } else {
-                        const type = !todayStatus ? 'in' : 'out';
-                        if (!(type === 'out' && todayStatus?.time_out)) {
-                          processAttendance(type);
-                        }
-                      }
-                    }
-                  } else {
-                    setMatchedStudent(null);
+                  if (elapsed >= AUTO_TRIGGER_DELAY) {
                     detectionStartTime.current = null;
                     setAutoTriggerProgress(0);
+                    
+                    if (isGlobal) {
+                      const isEnrolled = allParticipants.some(p => p.id === bestMatch.id);
+                      if (!isEnrolled) {
+                        setWarningMessage(`${bestMatch.full_name} is not enrolled or approved in this room.`);
+                        setStatus('error');
+                        setActionMessage("Not Enrolled");
+                        return;
+                      }
+
+                      const sStatus = await getTodayStatus(roomId, bestMatch.id);
+                      const type = !sStatus ? 'in' : 'out';
+                      if (!(type === 'out' && sStatus?.time_out)) {
+                        let capturedFrame = null;
+                        if (!bestMatch.face_image) {
+                          const canvasEl = document.createElement("canvas");
+                          canvasEl.width = video.videoWidth; canvasEl.height = video.videoHeight;
+                          const ctxEl = canvasEl.getContext("2d");
+                          if (ctxEl) {
+                            ctxEl.scale(-1, 1);
+                            ctxEl.drawImage(video, -canvasEl.width, 0, canvasEl.width, canvasEl.height);
+                            capturedFrame = canvasEl.toDataURL("image/jpeg", 0.8);
+                          }
+                        }
+                        processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
+                      }
+                    } else {
+                      const type = !todayStatus ? 'in' : 'out';
+                      if (!(type === 'out' && todayStatus?.time_out)) {
+                        processAttendance(type);
+                      }
+                    }
                   }
+                } else {
+                  setMatchedStudent(bestMatch ? null : { full_name: "Unrecognized" });
+                  detectionStartTime.current = null;
+                  setAutoTriggerProgress(0);
                 }
               }
             } catch (err) {
@@ -198,7 +221,7 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
             }
           }
 
-          const resizedDetections = faceapi.resizeResults(detections, displaySize);
+          const resizedDetections = faceapi.resizeResults(detection, displaySize);
           const ctx = canvas.getContext("2d");
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -221,10 +244,10 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
           }
         } else {
           setFaceDetected(false);
+          setMatchedStudent(null);
           detectionStartTime.current = null;
           setAutoTriggerProgress(0);
-          const ctx = canvas.getContext("2d");
-          ctx?.clearRect(0, 0, canvas.width, canvas.height);
+          canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
         }
       }, 100);
     }
@@ -241,6 +264,7 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
       setStream(mediaStream);
       setIsStreaming(true);
       setStatus('idle');
+      setWarningMessage(null);
     } catch (err) {
       toast.error("Camera access denied");
     }
@@ -258,16 +282,25 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
     try {
       if (type === 'in') {
         await timeIn(roomId, userId);
-        setActionMessage(`Successfully Time In!`);
+        const msg = `Successfully Time In!`;
+        setActionMessage(msg);
+        const utterance = new SpeechSynthesisUtterance("Time In Successful");
+        window.speechSynthesis.speak(utterance);
       } else {
         await timeOut(roomId, userId);
-        setActionMessage(`Successfully Time Out!`);
+        const msg = `Successfully Time Out!`;
+        setActionMessage(msg);
+        const utterance = new SpeechSynthesisUtterance("Time Out Successful");
+        window.speechSynthesis.speak(utterance);
       }
       setStatus('success');
       toast.success(type === 'in' ? "Time In recorded" : "Time Out recorded");
       fetchStatus();
+      
+      // Auto-reset after success
       setTimeout(() => {
-        stopCamera();
+        setStatus('idle');
+        setMatchedStudent(null);
       }, 4000);
     } catch (err: any) {
       toast.error(err.message || "Attendance failed");
@@ -288,10 +321,16 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
 
       if (type === 'in') {
         await timeIn(roomId, sId);
-        setActionMessage(`Successfully Time In: ${sName}`);
+        const msg = `Successfully Time In: ${sName}`;
+        setActionMessage(msg);
+        const utterance = new SpeechSynthesisUtterance(`Welcome, ${sName}. Time in successful.`);
+        window.speechSynthesis.speak(utterance);
       } else {
         await timeOut(roomId, sId);
-        setActionMessage(`Successfully Time Out: ${sName}`);
+        const msg = `Successfully Time Out: ${sName}`;
+        setActionMessage(msg);
+        const utterance = new SpeechSynthesisUtterance(`Goodbye, ${sName}. Time out successful.`);
+        window.speechSynthesis.speak(utterance);
       }
       setStatus('success');
       toast.success(`${type === 'in' ? "Time In" : "Time Out"}: ${sName}`);
@@ -340,9 +379,9 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
         <CardHeader className="bg-muted/30 border-b border-border py-6 px-8">
           <div className="flex items-center justify-between w-full">
             <div className="space-y-1">
-              <CardTitle className="text-2xl font-black tracking-tighter text-foreground flex items-center gap-3 uppercase italic">
-                <Scan className="h-6 w-6 text-primary" />
-                Live Terminal
+              <CardTitle className="text-2xl font-black tracking-tighter text-foreground flex items-center gap-3 uppercase italic text-primary">
+                <Scan className="h-6 w-6" />
+                Facial Attendance
               </CardTitle>
               <CardDescription className="font-medium">Secure facial authentication system</CardDescription>
             </div>
@@ -398,17 +437,48 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 10 }}
-                          className="absolute -top-16 left-1/2 -translate-x-1/2 bg-primary/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 whitespace-nowrap"
+                          className="absolute -top-20 left-1/2 -translate-x-1/2 bg-primary/95 backdrop-blur-xl px-6 py-3 rounded-2xl border border-white/20 shadow-2xl min-w-[200px]"
                         >
-                          <div className="flex items-center gap-2">
-                            <UserCheck className="h-4 w-4 text-white" />
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">{matchedStudent.full_name}</span>
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-yellow-400 animate-pulse" />
+                              <span className="text-[10px] font-black text-white uppercase tracking-widest">{matchedStudent.full_name}</span>
+                            </div>
+                            <span className="text-[8px] font-bold text-white/60 uppercase tracking-tight">Exact Match Found</span>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
 
-                    {/* Auto-Trigger Progress Ring */}
+                    {/* Dynamic Status Labels */}
+              {faceDetected && !isProcessing && status === 'idle' && (
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-3"
+                  >
+                    {autoTriggerProgress > 0 ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Analyzing Face...</span>
+                      </>
+                    ) : matchedStudent?.full_name === "Unrecognized" ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Face Unrecognized</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-blue-500/50" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Awaiting Biometrics</span>
+                      </>
+                    )}
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Auto-Trigger Progress Ring */}
                     {faceDetected && !isProcessing && status === 'idle' && (
                       <svg className="absolute inset-[-10px] w-[calc(100%+20px)] h-[calc(100%+20px)] rotate-[-90deg]">
                         <circle
@@ -516,12 +586,20 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
                     <div className="mx-auto bg-destructive/10 p-4 rounded-full w-fit mb-6">
                       <AlertCircle className="h-12 w-12 text-destructive" />
                     </div>
-                    <h3 className="text-2xl font-black tracking-tighter text-foreground mb-2 uppercase italic">Biometric Mismatch</h3>
-                    <p className="text-sm text-muted-foreground font-medium mb-6">The scanned face does not match the registered profile for this account.</p>
+                    <h3 className="text-2xl font-black tracking-tighter text-foreground mb-2 uppercase italic">
+                      {warningMessage ? "Access Denied" : "Biometric Mismatch"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground font-medium mb-6">
+                      {warningMessage || "The scanned face does not match the registered profile for this account."}
+                    </p>
                     
                     <Button 
                       variant="outline" 
-                      onClick={() => setStatus('idle')}
+                      onClick={() => {
+                        setStatus('idle');
+                        setWarningMessage(null);
+                        setMatchedStudent(null);
+                      }}
                       className="border-destructive/20 text-destructive hover:bg-destructive/10 rounded-xl uppercase font-black tracking-widest text-[10px] h-10 px-6"
                     >
                       Try Again
@@ -534,49 +612,10 @@ export function AttendanceTerminal({ roomId, userId, userName, isGlobal = false 
         </CardContent>
 
         <CardFooter className="p-8 border-t border-border bg-muted/5">
-          {isStreaming && status !== 'success' && (
-            <div className="flex w-full gap-4">
-              {(!todayStatus) && (
-                <Button 
-                  onClick={() => processAttendance('in')} 
-                  disabled={isProcessing || !faceDetected}
-                  size="lg"
-                  className={cn(
-                    "flex-1 h-16 rounded-2xl text-xl font-black uppercase italic tracking-tighter shadow-xl transition-all duration-300",
-                    faceDetected ? "bg-primary text-primary-foreground shadow-primary/20 hover:scale-[1.02]" : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  <ArrowRight className="mr-3 h-6 w-6" />
-                  Clock In
-                </Button>
-              )}
-              {(todayStatus && !todayStatus.time_out) && (
-                <Button 
-                  onClick={() => processAttendance('out')} 
-                  disabled={isProcessing || !faceDetected}
-                  variant="outline"
-                  size="lg"
-                  className={cn(
-                    "flex-1 h-16 rounded-2xl text-xl font-black uppercase italic tracking-tighter transition-all duration-300",
-                    faceDetected ? "border-primary text-primary hover:bg-primary/5" : "border-border text-muted-foreground"
-                  )}
-                >
-                  <Clock className="mr-3 h-6 w-6" />
-                  Clock Out
-                </Button>
-              )}
-              {todayStatus?.time_out && (
-                <div className="w-full text-center py-4 text-muted-foreground font-medium italic">
-                  Session duty completed for today.
-                </div>
-              )}
-            </div>
-          )}
-          {!isStreaming && (
-            <div className="w-full text-center">
-               <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Biometric Verification Mode Active</p>
-            </div>
-          )}
+          <div className="w-full text-center space-y-2">
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">Biometric Auto-Authentication Active</p>
+            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Position your face within the guide for hands-free check-in</p>
+          </div>
         </CardFooter>
       </Card>
     </div>

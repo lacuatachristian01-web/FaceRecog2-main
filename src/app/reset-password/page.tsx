@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { Lock, Loader2, AlertCircle, RefreshCcw } from 'lucide-react';
+import { Lock, Loader2, AlertCircle, RefreshCcw, Eye, EyeOff } from 'lucide-react';
 import { resetPassword } from '@/services/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -25,17 +25,26 @@ function ResetPasswordForm() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setHasSession(true);
-      } else if (errorCode) {
-        toast.error('Reset link invalid', {
-          description: errorDescription || 'Please request a new one.',
-        });
+      try {
+        const supabase = createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.warn("Auth session recovery warning:", sessionError.message);
+        }
+
+        if (session) {
+          setHasSession(true);
+        } else if (errorCode) {
+          toast.error('Reset link invalid', {
+            description: errorDescription || 'Please request a new one.',
+          });
+        }
+      } catch (err) {
+        console.error("Critical Auth Error in Reset Flow:", err);
+      } finally {
+        setSessionLoading(false);
       }
-      setSessionLoading(false);
     };
 
     checkSession();

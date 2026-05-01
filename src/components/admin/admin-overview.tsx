@@ -152,7 +152,7 @@ export function AdminOverview({ onNavigate }: AdminOverviewProps) {
           <div className="relative overflow-hidden flex items-center justify-center gap-4 py-8 rounded-[2.5rem] border border-dashed border-border/80 hover:border-primary/40 hover:bg-primary/5 transition-all group backdrop-blur-sm">
             <ScanFace className="w-6 h-6 text-primary transition-transform group-hover:scale-110" />
             <span className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground group-hover:text-foreground transition-colors">
-              Access Biometric Terminal
+              Facial Attendance
             </span>
             <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-1" />
           </div>

@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { createRoom, deleteRoom, getAdminRooms, Room, removeStudentFromRoom, getRoomParticipants, approveStudent } from "@/services/room";
+import { timeIn, timeOut, getTodayStatus } from "@/services/attendance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X, Check, Copy, DoorOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export function RoomList({ view }: { view?: string | null }) {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -32,7 +34,14 @@ export function RoomList({ view }: { view?: string | null }) {
   const [creating, setCreating] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [participants, setParticipants] = useState<any[]>([]);
+  const [participantStatuses, setParticipantStatuses] = useState<Record<string, any>>({});
+  const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [successRoom, setSuccessRoom] = useState<{name: string, event: string, code: string, type: string} | null>(null);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  
+  // Session Toggles
+  const [isAmEnabled, setIsAmEnabled] = useState(true);
+  const [isPmEnabled, setIsPmEnabled] = useState(true);
 
   useEffect(() => {
     fetchRooms();
@@ -78,37 +87,81 @@ export function RoomList({ view }: { view?: string | null }) {
 
     setCreating(true);
     try {
-      const room = await createRoom(
-        newRoomName, 
-        undefined, undefined, // Legacy
-        newEventName,
-        undefined, undefined, undefined, undefined, // Legacy
-        amTimeInStart,
-        amTimeInEnd,
-        amTimeOutStart,
-        amTimeOutEnd,
-        pmTimeInStart,
-        pmTimeInEnd,
-        pmTimeOutStart,
-        pmTimeOutEnd,
-        newEventDate, // Pass date
-        newEventType // Pass type
-      );
-      setSuccessRoom({
-        name: newRoomName,
-        event: newEventName,
-        code: room.code,
-        type: newEventType
-      });
+      if (editingRoom) {
+        await createRoom(
+          newRoomName, 
+          undefined, undefined,
+          newEventName,
+          undefined, undefined, undefined, undefined,
+          isAmEnabled ? amTimeInStart : undefined,
+          isAmEnabled ? amTimeInEnd : undefined,
+          isAmEnabled ? amTimeOutStart : undefined,
+          isAmEnabled ? amTimeOutEnd : undefined,
+          isPmEnabled ? pmTimeInStart : undefined,
+          isPmEnabled ? pmTimeInEnd : undefined,
+          isPmEnabled ? pmTimeOutStart : undefined,
+          isPmEnabled ? pmTimeOutEnd : undefined,
+          newEventDate,
+          newEventType,
+          editingRoom.id
+        );
+        toast.success("Room updated successfully");
+        setEditingRoom(null);
+      } else {
+        const room = await createRoom(
+          newRoomName, 
+          undefined, undefined,
+          newEventName,
+          undefined, undefined, undefined, undefined,
+          isAmEnabled ? amTimeInStart : undefined,
+          isAmEnabled ? amTimeInEnd : undefined,
+          isAmEnabled ? amTimeOutStart : undefined,
+          isAmEnabled ? amTimeOutEnd : undefined,
+          isPmEnabled ? pmTimeInStart : undefined,
+          isPmEnabled ? pmTimeInEnd : undefined,
+          isPmEnabled ? pmTimeOutStart : undefined,
+          isPmEnabled ? pmTimeOutEnd : undefined,
+          newEventDate,
+          newEventType
+        );
+        setSuccessRoom({
+          name: newRoomName,
+          event: newEventName,
+          code: room.code,
+          type: newEventType
+        });
+        toast.success("Room + Event created successfully");
+      }
       setNewRoomName("");
       setNewEventName("");
-      toast.success("Room + Event created successfully");
       fetchRooms();
     } catch (error: any) {
-      toast.error(error.message || "Failed to create room");
+      toast.error(error.message || "Failed to process room");
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleEditRoom = (room: Room) => {
+    setEditingRoom(room);
+    setNewRoomName(room.name);
+    setNewEventName(room.event_name || "");
+    setNewEventType(room.event_type || "University Event");
+    setNewEventDate(room.event_date || new Date().toISOString().split('T')[0]);
+    
+    setIsAmEnabled(!!room.am_time_in_start);
+    setAmTimeInStart(room.am_time_in_start || "08:00");
+    setAmTimeInEnd(room.am_time_in_end || "08:30");
+    setAmTimeOutStart(room.am_time_out_start || "11:30");
+    setAmTimeOutEnd(room.am_time_out_end || "12:00");
+    
+    setIsPmEnabled(!!room.pm_time_in_start);
+    setPmTimeInStart(room.pm_time_in_start || "13:00");
+    setPmTimeInEnd(room.pm_time_in_end || "13:30");
+    setPmTimeOutStart(room.pm_time_out_start || "16:30");
+    setPmTimeOutEnd(room.pm_time_out_end || "17:00");
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteRoom = async (roomId: string) => {
@@ -127,8 +180,41 @@ export function RoomList({ view }: { view?: string | null }) {
     try {
       const data = await getRoomParticipants(roomId);
       setParticipants(data);
+      setLoadingStatuses(true);
+      const statuses: Record<string, any> = {};
+      await Promise.all(data.map(async (p: any) => {
+        const status = await getTodayStatus(roomId, p.profiles.id);
+        statuses[p.profiles.id] = status;
+      }));
+      setParticipantStatuses(statuses);
     } catch (error: any) {
       toast.error("Failed to load students");
+    } finally {
+      setLoadingStatuses(false);
+    }
+  };
+
+  const handleManualTimeIn = async (studentId: string, studentName: string) => {
+    if (!selectedRoom) return;
+    try {
+      await timeIn(selectedRoom, studentId);
+      toast.success(`Manual Time In: ${studentName}`);
+      const newStatus = await getTodayStatus(selectedRoom, studentId);
+      setParticipantStatuses(prev => ({ ...prev, [studentId]: newStatus }));
+    } catch (err: any) {
+      toast.error(err.message || "Manual Time In failed");
+    }
+  };
+
+  const handleManualTimeOut = async (studentId: string, studentName: string) => {
+    if (!selectedRoom) return;
+    try {
+      await timeOut(selectedRoom, studentId);
+      toast.success(`Manual Time Out: ${studentName}`);
+      const newStatus = await getTodayStatus(selectedRoom, studentId);
+      setParticipantStatuses(prev => ({ ...prev, [studentId]: newStatus }));
+    } catch (err: any) {
+      toast.error(err.message || "Manual Time Out failed");
     }
   };
 
@@ -162,14 +248,12 @@ export function RoomList({ view }: { view?: string | null }) {
 
   return (
     <div className="space-y-10">
-      {/* Success Modal */}
       {successRoom && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="relative w-full max-w-md animate-in zoom-in-95 duration-300">
             <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
             <Card className="relative border-primary/30 bg-card/40 backdrop-blur-2xl rounded-[3rem] shadow-2xl border-2 overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent" />
-              
               <CardHeader className="text-center pt-10 space-y-2">
                 <CardTitle className="text-3xl font-black italic uppercase tracking-tight text-foreground">Room Created!</CardTitle>
                 <div className="h-px w-24 bg-border/50 mx-auto" />
@@ -182,7 +266,6 @@ export function RoomList({ view }: { view?: string | null }) {
                   </Badge>
                 </div>
               </CardHeader>
-
               <CardContent className="px-8 pb-10 space-y-8">
                 <div className="relative space-y-4">
                    <div className="flex items-center justify-center gap-3">
@@ -190,7 +273,6 @@ export function RoomList({ view }: { view?: string | null }) {
                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Room Code</span>
                      <div className="h-px flex-1 bg-border/30" />
                    </div>
-                   
                    <div className="group relative cursor-pointer" onClick={() => {
                       navigator.clipboard.writeText(successRoom.code);
                       toast.success("Room code copied!");
@@ -207,7 +289,6 @@ export function RoomList({ view }: { view?: string | null }) {
                       <p className="text-[9px] text-center mt-3 text-muted-foreground uppercase font-black tracking-widest animate-pulse">Click code to copy</p>
                    </div>
                 </div>
-
                 <Button 
                   onClick={() => setSuccessRoom(null)}
                   className="w-full h-16 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground text-lg font-black uppercase tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
@@ -227,15 +308,31 @@ export function RoomList({ view }: { view?: string | null }) {
                <div className="p-3 rounded-2xl bg-primary/10 text-primary">
                  <Plus className="w-5 h-5" />
                </div>
-               <div className="space-y-1">
-                 <CardTitle className="text-2xl font-black tracking-tight text-foreground uppercase italic">Initialize Room + Event</CardTitle>
-                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">Setup a new attendance session</p>
-               </div>
+                <div className="space-y-1">
+                  <CardTitle className="text-2xl font-black tracking-tight text-foreground uppercase italic">
+                    {editingRoom ? "Edit Room + Event" : "Initialize Room + Event"}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
+                    {editingRoom ? `Modifying ${editingRoom.name}` : "Setup a new attendance session"}
+                  </p>
+                </div>
+                {editingRoom && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      setEditingRoom(null);
+                      setNewRoomName("");
+                      setNewEventName("");
+                    }}
+                    className="ml-auto text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
             </div>
           </CardHeader>
           <CardContent className="px-8 pb-8">
             <form onSubmit={handleCreateRoom} className="space-y-12 py-4">
-              {/* Primary Info */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1 italic">Room Designation</label>
@@ -274,7 +371,6 @@ export function RoomList({ view }: { view?: string | null }) {
                 </div>
               </div>
 
-              {/* Event Type Selection */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1 italic">Event Category</label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -295,9 +391,7 @@ export function RoomList({ view }: { view?: string | null }) {
                 </div>
               </div>
 
-              {/* Session Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                {/* Morning Session */}
                 <div className="relative p-8 rounded-[2rem] bg-orange-500/[0.03] border border-orange-500/10 space-y-6">
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-2xl bg-orange-500/10 text-orange-500 shadow-[0_0_15px_-3px_rgba(249,115,22,0.3)]">
@@ -305,11 +399,20 @@ export function RoomList({ view }: { view?: string | null }) {
                     </div>
                     <div className="space-y-0.5">
                       <h3 className="text-sm font-black uppercase tracking-[0.15em] text-foreground italic">Morning Session</h3>
-                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">Window Allocation</p>
+                      <div className="flex items-center gap-2">
+                         <input 
+                            type="checkbox" 
+                            checked={isAmEnabled} 
+                            onChange={(e) => setIsAmEnabled(e.target.checked)}
+                            className="w-3 h-3 accent-orange-500"
+                         />
+                         <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">
+                            {isAmEnabled ? "Window Allocation Active" : "Session Disabled"}
+                         </p>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className={cn("grid grid-cols-2 gap-6 transition-opacity", !isAmEnabled && "opacity-20 pointer-events-none")}>
                     {[
                       { label: "Time In Start", value: amTimeInStart, setter: setAmTimeInStart },
                       { label: "Time In End", value: amTimeInEnd, setter: setAmTimeInEnd },
@@ -329,7 +432,6 @@ export function RoomList({ view }: { view?: string | null }) {
                   </div>
                 </div>
 
-                {/* Afternoon Session */}
                 <div className="relative p-8 rounded-[2rem] bg-blue-500/[0.03] border border-blue-500/10 space-y-6">
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-500 shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]">
@@ -337,11 +439,20 @@ export function RoomList({ view }: { view?: string | null }) {
                     </div>
                     <div className="space-y-0.5">
                       <h3 className="text-sm font-black uppercase tracking-[0.15em] text-foreground italic">Afternoon Session</h3>
-                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">Window Allocation</p>
+                      <div className="flex items-center gap-2">
+                         <input 
+                            type="checkbox" 
+                            checked={isPmEnabled} 
+                            onChange={(e) => setIsPmEnabled(e.target.checked)}
+                            className="w-3 h-3 accent-blue-500"
+                         />
+                         <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">
+                            {isPmEnabled ? "Window Allocation Active" : "Session Disabled"}
+                         </p>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className={cn("grid grid-cols-2 gap-6 transition-opacity", !isPmEnabled && "opacity-20 pointer-events-none")}>
                     {[
                       { label: "Time In Start", value: pmTimeInStart, setter: setPmTimeInStart },
                       { label: "Time In End", value: pmTimeInEnd, setter: setPmTimeInEnd },
@@ -372,11 +483,11 @@ export function RoomList({ view }: { view?: string | null }) {
                   {creating ? (
                     <div className="flex items-center gap-4">
                       <div className="w-6 h-6 border-4 border-primary-foreground/20 border-t-primary-foreground rounded-full animate-spin" />
-                      <span>Authorizing...</span>
+                      <span>Processing...</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <span>Authorize & Create Session</span>
+                      <span>{editingRoom ? "Save Changes" : "Authorize & Create Session"}</span>
                       <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                     </div>
                   )}
@@ -407,22 +518,18 @@ export function RoomList({ view }: { view?: string | null }) {
           ) : (
             rooms.map((room) => (
               <Card key={room.id} className="group relative overflow-hidden bg-card/30 border-border/50 hover:border-primary/40 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full">
-                {/* Status Indicator */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
-                
                 <CardHeader className="pb-6 pt-8 px-8 relative z-10">
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-4 flex-1">
                       <CardTitle className="text-3xl font-black tracking-tight text-foreground uppercase italic leading-none group-hover:text-primary transition-colors">
                         {room.name} {room.event_name ? `— ${room.event_name}` : ''}
                       </CardTitle>
-                      
                       <div className="flex flex-wrap items-center gap-y-3 gap-x-6">
                         <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
                           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                           <span className="text-[10px] font-black uppercase tracking-[0.1em] text-green-500/90">Active Session</span>
                         </div>
-
                         {room.event_date && (
                           <div className="flex items-center gap-2.5">
                             <Calendar className="w-3.5 h-3.5 text-primary/50" />
@@ -431,7 +538,6 @@ export function RoomList({ view }: { view?: string | null }) {
                             </span>
                           </div>
                         )}
-
                         {room.event_type && (
                           <Badge variant="outline" className="h-6 border-primary/30 bg-primary/10 text-[9px] font-black uppercase tracking-widest text-primary px-3 rounded-lg">
                             {room.event_type}
@@ -439,19 +545,27 @@ export function RoomList({ view }: { view?: string | null }) {
                         )}
                       </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-12 w-12 rounded-2xl bg-secondary/30 hover:bg-destructive/20 hover:text-destructive transition-all shrink-0"
-                      onClick={() => handleDeleteRoom(room.id)}
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
+                    <div className="flex gap-2 shrink-0">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-12 w-12 rounded-2xl bg-secondary/30 hover:bg-primary/20 hover:text-primary transition-all"
+                        onClick={() => handleEditRoom(room)}
+                      >
+                        <Plus className="h-5 w-5" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-12 w-12 rounded-2xl bg-secondary/30 hover:bg-destructive/20 hover:text-destructive transition-all"
+                        onClick={() => handleDeleteRoom(room.id)}
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
-
                 <CardContent className="px-8 pb-6 space-y-6 relative z-10 flex-1">
-                   {/* Join Code Display */}
                    <div className="p-4 rounded-2xl bg-secondary/30 border border-border/40 flex items-center justify-between group-hover:border-primary/20 transition-colors">
                       <div className="space-y-0.5">
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Join Code</p>
@@ -466,33 +580,39 @@ export function RoomList({ view }: { view?: string | null }) {
                         <Copy className="h-4 w-4" />
                       </Button>
                    </div>
-
                    <div className="grid grid-cols-1 gap-4 pt-2">
                       <div className="relative p-5 rounded-2xl bg-primary/[0.03] border border-primary/10 group/window overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-primary/20" />
                         <div className="flex items-start gap-4">
                           <Clock className="w-4 h-4 text-primary/60 mt-0.5" />
                           <div className="space-y-3">
-                             <div className="flex flex-col">
-                                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50">Morning Window</span>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">IN: {format12h(room.am_time_in_start)} - {format12h(room.am_time_in_end)}</span>
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">OUT: {format12h(room.am_time_out_start)} - {format12h(room.am_time_out_end)}</span>
-                                </div>
-                             </div>
-                             <div className="flex flex-col pt-3 border-t border-primary/5">
-                                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary/50">Afternoon Window</span>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">IN: {format12h(room.pm_time_in_start)} - {format12h(room.pm_time_in_end)}</span>
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">OUT: {format12h(room.pm_time_out_start)} - {format12h(room.pm_time_out_end)}</span>
-                                </div>
-                             </div>
+                              <div className="flex flex-col">
+                                 <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", room.am_time_in_start ? "text-primary/50" : "text-muted-foreground/30")}>
+                                   Morning Window {!room.am_time_in_start && "(Disabled)"}
+                                 </span>
+                                 {room.am_time_in_start && (
+                                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                     <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">IN: {format12h(room.am_time_in_start)} - {format12h(room.am_time_in_end)}</span>
+                                     <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">OUT: {format12h(room.am_time_out_start)} - {format12h(room.am_time_out_end)}</span>
+                                   </div>
+                                 )}
+                              </div>
+                              <div className="flex flex-col pt-3 border-t border-primary/5">
+                                 <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", room.pm_time_in_start ? "text-primary/50" : "text-muted-foreground/30")}>
+                                   Afternoon Window {!room.pm_time_in_start && "(Disabled)"}
+                                 </span>
+                                 {room.pm_time_in_start && (
+                                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                     <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">IN: {format12h(room.pm_time_in_start)} - {format12h(room.pm_time_in_end)}</span>
+                                     <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/90">OUT: {format12h(room.pm_time_out_start)} - {format12h(room.pm_time_out_end)}</span>
+                                   </div>
+                                 )}
+                              </div>
                           </div>
                         </div>
                       </div>
                    </div>
                 </CardContent>
-
                 <CardFooter className="px-8 pb-8 pt-2 relative z-10">
                    <Button 
                     variant="secondary" 
@@ -509,7 +629,6 @@ export function RoomList({ view }: { view?: string | null }) {
         </div>
       )}
 
-      {/* Participant Management Modal */}
       {selectedRoom && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/60 backdrop-blur-md animate-in fade-in duration-300">
           <Card className="w-full max-w-xl border-border/50 bg-card/95 backdrop-blur-2xl shadow-[0_0_100px_rgba(0,0,0,0.5)] rounded-[3rem] overflow-hidden animate-in zoom-in-95 duration-300">
@@ -578,7 +697,34 @@ export function RoomList({ view }: { view?: string | null }) {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        {p.is_approved && (
+                          <div className="flex items-center gap-1.5 mr-2">
+                            {participantStatuses[p.profiles.id]?.time_in ? (
+                              participantStatuses[p.profiles.id]?.time_out ? (
+                                <Badge variant="outline" className="bg-muted text-muted-foreground text-[7px] uppercase font-black px-2 py-0">Completed</Badge>
+                              ) : (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="h-7 text-[8px] font-black uppercase tracking-widest border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-lg px-3"
+                                  onClick={() => handleManualTimeOut(p.profiles.id, p.profiles.full_name)}
+                                >
+                                  Clock Out
+                                </Button>
+                              )
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="h-7 text-[8px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary hover:text-white rounded-lg px-3"
+                                onClick={() => handleManualTimeIn(p.profiles.id, p.profiles.full_name)}
+                              >
+                                Clock In
+                              </Button>
+                            )}
+                          </div>
+                        )}
                         {!p.is_approved && (
                           <Button 
                             variant="ghost" 

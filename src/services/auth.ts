@@ -1,12 +1,16 @@
-import { createClient } from '@/utils/supabase/client';
+"use server";
+
+import { createClient } from '@/utils/supabase/server';
+import { headers } from 'next/headers';
 
 /**
  * Auth Service
  * Strictly contains all business logic and Supabase queries for authentication.
+ * All functions are Server Actions to ensure secure cookie handling and avoid client-side auth issues.
  */
 
 export async function signInWithID(name: string, id: string) {
-  const client = createClient();
+  const client = await createClient();
   
   // Sanitize ID for email: remove non-alphanumeric and use standard domain
   const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -28,7 +32,7 @@ export async function signUpWithID(
   role: 'admin' | 'student' = 'student', 
   courseYear?: string
 ) {
-  const client = createClient();
+  const client = await createClient();
   
   // Sanitize ID for email: remove non-alphanumeric and use standard domain
   const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -51,23 +55,25 @@ export async function signUpWithID(
 }
 
 export async function signOut() {
-  const client = createClient();
+  const client = await createClient();
   const { error } = await client.auth.signOut();
   if (error) throw error;
   return { success: true };
 }
 
 export async function forgotPassword(email: string) {
-  const client = createClient();
+  const headersList = await headers();
+  const origin = headersList.get('origin') || headersList.get('host');
+  const client = await createClient();
   const { error } = await client.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: `${origin}/reset-password`,
   });
   if (error) throw error;
   return { success: true };
 }
 
 export async function resetPassword(password: string) {
-  const client = createClient();
+  const client = await createClient();
   const { error } = await client.auth.updateUser({
     password: password,
   });
@@ -76,7 +82,7 @@ export async function resetPassword(password: string) {
 }
 
 export async function updatePassword(password: string, currentPassword?: string) {
-  const client = createClient();
+  const client = await createClient();
 
   if (currentPassword) {
     // 1. Get current user email
@@ -94,7 +100,7 @@ export async function updatePassword(password: string, currentPassword?: string)
     }
   }
 
-  // 3. Procceed with update
+  // 3. Proceed with update
   const { error } = await client.auth.updateUser({
     password: password,
   });

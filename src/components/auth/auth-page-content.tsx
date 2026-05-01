@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { FaceRegistration } from '@/components/student/face-registration';
 
-export function AuthPageContent() {
+export function AuthPageContent({ session }: { session?: any }) {
   const [mode, setMode] = useState<'login' | 'signup'>('signup'); // Default to signup as in image
   const [name, setName] = useState('');
   const [id, setId] = useState('');
@@ -28,6 +28,13 @@ export function AuthPageContent() {
   const [userRole, setUserRole] = useState<'admin' | 'student'>('student');
   const [step, setStep] = useState<'info' | 'face'>('info');
   const router = useRouter();
+
+  // Check for existing student session needing face registration
+  useEffect(() => {
+    if (session?.user && session.profile?.role === 'student' && !session.profile?.face_registered) {
+      setStep('face');
+    }
+  }, [session]);
 
   useEffect(() => {
     const saved = localStorage.getItem('df_auth_mode');
@@ -60,6 +67,7 @@ export function AuthPageContent() {
         
         if (userRole === 'student') {
           setStep('face');
+          router.refresh();
         } else {
           router.push('/dashboard');
           router.refresh();

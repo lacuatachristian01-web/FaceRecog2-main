@@ -12,36 +12,92 @@ export type AttendanceRecord = Database['public']['Tables']['attendance']['Row']
 
 export async function timeIn(roomId: string, studentId: string) {
   const supabase = await createClient();
-  
-  // 1. Check if already timed in today for this room
   const today = new Date().toISOString().split('T')[0];
   
-  const { data: existing, error: checkError } = await supabase
+  // 1. Get room details
+  const { data: room } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+
+  if (!room) throw new Error('Room not found');
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // 2. Identify the active session window
+  let activeSession: 'AM' | 'PM' | null = null;
+  let targetInStart = "";
+  let targetInEnd = "";
+
+  const parseToMinutes = (timeStr?: string | null) => {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const amInStart = parseToMinutes(room.am_time_in_start);
+  const amOutEnd = parseToMinutes(room.am_time_out_end);
+  const pmInStart = parseToMinutes(room.pm_time_in_start);
+  const pmOutEnd = parseToMinutes(room.pm_time_out_end);
+
+  // Check if we are in AM window (from AM In Start to AM Out End)
+  if (amInStart !== null && amOutEnd !== null && currentMinutes >= amInStart && currentMinutes <= amOutEnd) {
+    activeSession = 'AM';
+    targetInStart = room.am_time_in_start!;
+    targetInEnd = room.am_time_in_end!;
+  } 
+  // Check if we are in PM window (from PM In Start to PM Out End)
+  else if (pmInStart !== null && pmOutEnd !== null && currentMinutes >= pmInStart && currentMinutes <= pmOutEnd) {
+    activeSession = 'PM';
+    targetInStart = room.pm_time_in_start!;
+    targetInEnd = room.pm_time_in_end!;
+  }
+
+  // If no session is active based on time windows, we might be outside any window
+  // but let's allow it if it's the only session enabled
+  if (!activeSession) {
+    if (room.am_time_in_start && !room.pm_time_in_start) {
+      activeSession = 'AM';
+      targetInStart = room.am_time_in_start;
+      targetInEnd = room.am_time_in_end;
+    } else if (room.pm_time_in_start && !room.am_time_in_start) {
+      activeSession = 'PM';
+      targetInStart = room.pm_time_in_start;
+      targetInEnd = room.pm_time_in_end;
+    } else {
+       // Default to latest if both exist but we are between them
+       activeSession = currentMinutes < (pmInStart || 1440) ? 'AM' : 'PM';
+       targetInStart = activeSession === 'AM' ? (room.am_time_in_start || "") : (room.pm_time_in_start || "");
+       targetInEnd = activeSession === 'AM' ? (room.am_time_in_end || "") : (room.pm_time_in_end || "");
+    }
+  }
+
+  // 3. Check if already timed in for THIS session today
+  // We define "this session" by the presence of a record that is still "open" 
+  // or a record created within the session's time range.
+  const sessionStartTime = activeSession === 'AM' ? `${today}T00:00:00` : `${today}T12:00:00`;
+  const sessionEndTime = activeSession === 'AM' ? `${today}T12:00:00` : `${today}T23:59:59`;
+
+  const { data: existing } = await supabase
     .from('attendance')
     .select('id')
     .eq('room_id', roomId)
     .eq('student_id', studentId)
-    .gte('time_in', `${today}T00:00:00`)
+    .gte('time_in', sessionStartTime)
+    .lt('time_in', sessionEndTime)
     .is('time_out', null)
-    .single();
+    .maybeSingle();
 
-  if (existing) throw new Error('Already timed in');
+  if (existing) throw new Error(`Already timed in for ${activeSession} session`);
 
-  // 2. Get room start time
-  const { data: room } = await supabase
-    .from('rooms')
-    .select('start_time')
-    .eq('id', roomId)
-    .single();
-
+  // 4. Calculate Lateness
   const events: string[] = [];
-  if (room?.start_time) {
-    const now = new Date();
-    const [hours, minutes] = room.start_time.split(':').map(Number);
-    const scheduledTime = new Date();
-    scheduledTime.setHours(hours, minutes, 0, 0);
-
-    if (now > scheduledTime) {
+  if (targetInEnd) {
+    const [h, m] = targetInEnd.split(':').map(Number);
+    const deadline = h * 60 + m;
+    if (currentMinutes > deadline) {
       events.push('Late');
     }
   }
@@ -140,8 +196,11 @@ export async function getStudentAttendance(studentId: string) {
 export async function getTodayStatus(roomId: string, studentId: string) {
   const supabase = await createClient();
   const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
   
-  const { data, error } = await supabase
+  // Fetch the most recent record today
+  const { data: lastRecord, error } = await supabase
     .from('attendance')
     .select('*')
     .eq('room_id', roomId)
@@ -152,7 +211,30 @@ export async function getTodayStatus(roomId: string, studentId: string) {
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+
+  // If there's no record, they definitely need to time in
+  if (!lastRecord) return null;
+
+  // If they have an open session (no time_out), they need to time out
+  if (!lastRecord.time_out) return lastRecord;
+
+  // If they have a completed session, check if we are now in a DIFFERENT session window
+  const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+  if (room) {
+    const pmInStart = room.pm_time_in_start ? (room.pm_time_in_start.split(':').map(Number)[0] * 60 + room.pm_time_in_start.split(':').map(Number)[1]) : null;
+    
+    // If last record was AM (before 12 PM) and now it's PM (after PM In Start)
+    const lastInTime = new Date(lastRecord.time_in);
+    const wasAm = lastInTime.getHours() < 12;
+    const isNowPm = currentMinutes >= (pmInStart || 720); // Default to 12 PM if not set
+
+    if (wasAm && isNowPm && room.pm_time_in_start) {
+      // Allow a new clock in for the afternoon!
+      return null; 
+    }
+  }
+
+  return lastRecord;
 }
 
 export async function deleteAttendanceRecord(id: string) {
@@ -245,4 +327,14 @@ export async function getRoomParticipantsWithFaces(roomId: string) {
   return (data as any[] || [])
     .map(d => d.profiles)
     .filter(p => p && p.face_embedding);
+}
+export async function getAllRegisteredFaces() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, face_embedding, face_image')
+    .not('face_embedding', 'is', null);
+
+  if (error) throw error;
+  return data || [];
 }

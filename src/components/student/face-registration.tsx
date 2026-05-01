@@ -137,15 +137,82 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           const centerX = x + width / 2;
           const centerY = y + height / 2;
           
-          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.15; // More forgiving
-          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.15;
+          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.08; // Strict centering
+          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.08;
+          
+          const landmarks = detection.landmarks;
+          const nose = landmarks.getNose();
+          const mouth = landmarks.getMouth();
+          const leftEye = landmarks.getLeftEye();
+          const rightEye = landmarks.getRightEye();
+          const leftEyebrow = landmarks.getLeftEyeBrow();
+
+          // Precision Check: Face Leveling (Eyes must be aligned horizontally)
+          const eyeDeltaY = Math.abs(leftEye[0].y - rightEye[0].y);
+          const isLeveled = eyeDeltaY < (detection.detection.box.height * 0.02);
+
+          // Precision Check: Head Rotation (Yaw)
+          const distToLeftEye = Math.abs(nose[0].x - leftEye[0].x);
+          const distToRightEye = Math.abs(nose[0].x - rightEye[0].x);
+          const isLookingStraight = Math.abs(distToLeftEye - distToRightEye) < (distToLeftEye * 0.25);
+
+          // Security Check: Specific Accessory Detection
+          const mouthWidth = Math.abs(mouth[6].x - mouth[0].x);
+          const mouthHeight = Math.abs(mouth[9].y - mouth[3].y);
+          const isMaskSuspected = mouthHeight < 1 || (detection.detection.score < 0.88 && mouthHeight < 3);
+          const eyeToTopDist = Math.abs(leftEyebrow[0].y - detection.detection.box.y);
+          const isCapSuspected = eyeToTopDist < (detection.detection.box.height * 0.10);
+          const isGlassesSuspected = detection.detection.score > 0.82 && detection.detection.score <= 0.90 && !isMaskSuspected && !isCapSuspected;
+
+          const isHighConfidence = detection.detection.score > 0.91;
           
           if (isCenteredX && isCenteredY) {
+            // Priority 1: Leveling & Rotation
+            if (!isLeveled) {
+              setIsCorrectPosture(false);
+              setGuideMessage("LEVEL YOUR FACE");
+              setAutoCaptureProgress(0);
+              return;
+            }
+            if (!isLookingStraight) {
+              setIsCorrectPosture(false);
+              setGuideMessage("LOOK DIRECTLY AT CAMERA");
+              setAutoCaptureProgress(0);
+              return;
+            }
+
+            // Priority 2: Specific Accessory Red Warnings
+            if (isMaskSuspected) {
+              setIsCorrectPosture(false);
+              setGuideMessage("REMOVE YOUR MASK");
+              setAutoCaptureProgress(0);
+              return;
+            }
+            if (isCapSuspected) {
+              setIsCorrectPosture(false);
+              setGuideMessage("REMOVE YOUR CAP");
+              setAutoCaptureProgress(0);
+              return;
+            }
+            if (isGlassesSuspected) {
+              setIsCorrectPosture(false);
+              setGuideMessage("REMOVE YOUR EYEGLASSES/SUNGLASSES");
+              setAutoCaptureProgress(0);
+              return;
+            }
+
+            if (!isHighConfidence) {
+              setIsCorrectPosture(false);
+              setGuideMessage("FACE OBSCURED - CLEAR FACE");
+              setAutoCaptureProgress(0);
+              return;
+            }
+
             setIsCorrectPosture(true);
             setGuideMessage("Verified! Processing...");
             
             setAutoCaptureProgress(prev => {
-              const next = prev + 35; 
+              const next = prev + 34; // Rapid Lock-On (3 frames to capture)
               if (next >= 100) {
                 setTimeout(() => {
                   clearInterval(interval);
@@ -205,8 +272,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleAutoCapture = async (detection: any) => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || isRegistering) return;
+    
+    // 1. Stop video immediately to give visual feedback that capture happened
+    stopVideo();
     setIsRegistering(true);
+    setGuideMessage("Processing Biometrics...");
     
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
@@ -227,6 +298,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
         console.warn("[FaceRegistration] Invalid dimensions detected for capture:", { width, height, videoWidth: video.videoWidth });
         setIsRegistering(false);
         setStep("scanning");
+        startVideo(); // Restart if failed
         return;
       }
 
@@ -240,7 +312,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       
       setCapturedImage(imageData);
       setDescriptor(Array.from(detection.descriptor));
-      stopVideo();
+      
+      // Switch to captured step immediately so user sees the result while waiting
+      setStep("captured");
       
       // Automatic confirmation
       try {
@@ -287,6 +361,10 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     setDescriptor(null);
     setHasFailedRegistration(false);
     setRegistrationError(null);
+    setAutoCaptureProgress(0);
+    setFaceDetected(false);
+    setIsCorrectPosture(false);
+    setGuideMessage("Center Your Face");
     setStep("scanning");
     startVideo();
   };
@@ -413,23 +491,23 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               </div>
 
               {registrationType === 'biometric' && (
-                <div className="grid grid-cols-1 gap-4 px-4">
+                <div className="grid grid-cols-1 gap-3 px-4">
                   {[
                     { icon: <Scan className="w-4 h-4" />, text: "Center your face in the camera frame" },
                     { icon: <RefreshCcw className="w-4 h-4" />, text: "Ensure your environment is well-lit" },
                     { icon: <User className="w-4 h-4" />, text: "Remove glasses, masks or hats" },
                   ].map((item, i) => (
                     <motion.div 
-                      initial={{ opacity: 0, x: -20 }}
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.1 }}
                       key={i}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10"
+                      className="flex items-center gap-5 p-5 rounded-3xl bg-zinc-900/60 border border-zinc-800/50 hover:bg-zinc-900/80 transition-colors group"
                     >
-                      <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-500 shadow-inner group-hover:scale-110 transition-transform">
                         {item.icon}
                       </div>
-                      <span className="text-xs text-zinc-300 font-medium">{item.text}</span>
+                      <span className="text-xs text-zinc-200 font-bold tracking-tight">{item.text}</span>
                     </motion.div>
                   ))}
                 </div>
@@ -541,6 +619,14 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                         className="w-full h-full object-cover scale-x-[-1]"
                       />
 
+                      {/* Top Floating Instruction Badge */}
+                      <div className="absolute top-6 left-0 w-full flex justify-center z-50">
+                        <div className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-2">
+                          <AlertTriangle className="w-2.5 h-2.5 text-yellow-500" />
+                          <span className="text-[8px] font-black uppercase tracking-widest text-zinc-300">No Glasses / No Mask</span>
+                        </div>
+                      </div>
+
                       {/* Face Silhouette Guide */}
                       <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
                         <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] text-white">
@@ -553,11 +639,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                           />
                           <path d="M40,40 Q40,38 42,38 Q44,38 44,40" fill="none" stroke="currentColor" strokeWidth="1" />
                           <path d="M56,40 Q56,38 58,38 Q60,38 60,40" fill="none" stroke="currentColor" strokeWidth="1" />
-                          <path d="M50,48 L50,58 L45,62" fill="none" stroke="currentColor" strokeWidth="1" />
-                          <path d="M40,70 Q50,75 60,70" fill="none" stroke="currentColor" strokeWidth="1" />
                         </svg>
                       </div>
-                      
+
                       {/* Scanning Line Effect */}
                       <AnimatePresence>
                         {faceDetected && (
@@ -608,8 +692,10 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className={cn(
-                        "text-sm font-black uppercase tracking-[0.2em] transition-all italic",
-                        faceDetected ? "text-blue-400" : "text-zinc-500"
+                        "text-xs font-black uppercase tracking-tighter italic",
+                        guideMessage.includes("REMOVE") || guideMessage.includes("OBSCURED") 
+                          ? "text-red-500 animate-pulse" 
+                          : faceDetected ? "text-blue-400" : "text-zinc-500"
                       )}
                     >
                       {guideMessage}
@@ -637,8 +723,14 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
                   {registrationType === 'biometric' && (
                     <div className="h-10 flex items-center justify-center bg-white/5 rounded-2xl border border-white/10 px-6">
-                      <Loader2 className="w-3 h-3 animate-spin text-blue-500 mr-3" />
-                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">Auto-Capture Ready</span>
+                      {faceDetected ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-blue-500 mr-3" />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-zinc-700 animate-pulse mr-3" />
+                      )}
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
+                        {faceDetected ? "Auto-Capture Ready" : "Waiting for Face..."}
+                      </span>
                     </div>
                   )}
 
@@ -765,6 +857,28 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                     <span className="text-[10px] uppercase font-bold tracking-widest">Processing...</span>
                   </div>
                 )}
+                
+                {/* Registration Overlay */}
+                <AnimatePresence>
+                  {isRegistering && (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+                    >
+                      <div className="relative">
+                        <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
+                        <div className="absolute inset-0 blur-xl bg-blue-500/20 animate-pulse" />
+                      </div>
+                      <div className="space-y-1 text-center">
+                        <p className="text-sm font-black text-white uppercase italic tracking-tighter">Syncing Biometrics</p>
+                        <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Enrolling Secure Profile</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="absolute inset-0 bg-emerald-500/5 z-10 pointer-events-none" />
               </div>
 
@@ -820,27 +934,29 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   </Button>
                 )}
 
-                <div className="flex flex-col gap-2">
-                  {registrationError !== "This Face is Already Registered!" && (
+                {registrationType === 'simple' && (
+                  <div className="flex flex-col gap-2">
+                    {registrationError !== "This Face is Already Registered!" && (
+                      <Button 
+                        variant="ghost" 
+                        onClick={handleReEdit}
+                        className="text-zinc-400 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                      >
+                        <RefreshCcw className="w-3.5 h-3.5" />
+                        Re-edit Photo
+                      </Button>
+                    )}
+                    
                     <Button 
                       variant="ghost" 
-                      onClick={handleReEdit}
-                      className="text-zinc-400 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                      onClick={handleRetake}
+                      className="text-zinc-600 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
                     >
-                      <RefreshCcw className="w-3.5 h-3.5" />
-                      Re-edit Photo
+                      <Camera className="w-3.5 h-3.5" />
+                      {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Take New Photo"}
                     </Button>
-                  )}
-                  
-                  <Button 
-                    variant="ghost" 
-                    onClick={handleRetake}
-                    className="text-zinc-600 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Take New Photo"}
-                  </Button>
-                </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

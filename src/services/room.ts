@@ -29,11 +29,45 @@ export async function createRoom(
   pmTimeOutStart?: string,
   pmTimeOutEnd?: string,
   sessionDate?: string,
-  eventType?: string
+  eventType?: string,
+  id?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+
+  if (id) {
+    const { data, error } = await supabase
+      .from('rooms')
+      .update({
+        name,
+        admin_id: user.id,
+        start_time: startTime,
+        end_time: endTime,
+        event_name: eventName,
+        start_time_am: startTimeAm,
+        end_time_am: endTimeAm,
+        start_time_pm: startTimePm,
+        end_time_pm: endTimePm,
+        am_time_in_start: amTimeInStart,
+        am_time_in_end: amTimeInEnd,
+        am_time_out_start: amTimeOutStart,
+        am_time_out_end: amTimeOutEnd,
+        pm_time_in_start: pmTimeInStart,
+        pm_time_in_end: pmTimeInEnd,
+        pm_time_out_start: pmTimeOutStart,
+        pm_time_out_end: pmTimeOutEnd,
+        event_date: sessionDate,
+        event_type: eventType
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    revalidatePath('/dashboard');
+    return data;
+  }
 
   // Generate a random 6-character code
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
