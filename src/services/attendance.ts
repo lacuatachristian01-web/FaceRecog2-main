@@ -102,7 +102,8 @@ export async function timeIn(roomId: string, studentId: string) {
     }
   }
 
-  const fine = events.includes('Late') ? 50 : 0;
+  const fineAmount = activeSession === 'AM' ? (room.am_fine_amount || 50) : (room.pm_fine_amount || 50);
+  const fine = events.includes('Late') ? fineAmount : 0;
 
   const { data, error } = await supabase
     .from('attendance')
@@ -337,4 +338,64 @@ export async function getAllRegisteredFaces() {
 
   if (error) throw error;
   return data || [];
+}
+export async function getStudentFinesSummary(studentId: string) {
+  const supabase = await createClient();
+  
+  // 1. Get all rooms the student is a participant in
+  const { data: participations, error: pError } = await supabase
+    .from('room_participants')
+    .select(`
+      room_id,
+      is_approved,
+      rooms (*)
+    `)
+    .eq('student_id', studentId)
+    .eq('is_approved', true);
+
+  if (pError) throw pError;
+
+  // 2. Get all attendance records for this student
+  const { data: attendance, error: aError } = await supabase
+    .from('attendance')
+    .select(`
+      *,
+      rooms (name, event_name, event_date)
+    `)
+    .eq('student_id', studentId);
+
+  if (aError) throw aError;
+
+  // 3. Separate into attended and missed
+  // For missed: Any room joined where event_date <= today and no attendance record exists
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const attended = attendance.map(a => ({
+    id: a.id,
+    event_name: a.rooms?.event_name || a.rooms?.name || "Regular Session",
+    time_in: a.time_in,
+    time_out: a.time_out,
+    fines: a.fines || 0
+  }));
+
+  const attendedRoomIds = new Set(attendance.map(a => a.room_id));
+  
+  const missed = (participations as any[])
+    .filter(p => {
+      if (!p.rooms) return false;
+      const eventDate = new Date(p.rooms.event_date);
+      // If event was in the past and no attendance record
+      return eventDate < today && !attendedRoomIds.has(p.room_id);
+    })
+    .map(p => ({
+      id: p.room_id,
+      event_name: p.rooms.event_name || p.rooms.name,
+      fines: 100 // Flat fine for missing an entire event
+    }));
+
+  const totalFines = attended.reduce((sum, a) => sum + (a.fines || 0), 0) + 
+                     missed.reduce((sum, m) => sum + (m.fines || 0), 0);
+
+  return { attended, missed, totalFines };
 }

@@ -43,6 +43,7 @@ import { FacialAttendanceTerminal } from "./attendance/facial-attendance-termina
 import { FaceRegistration } from "./student/face-registration"
 import { getStudentRooms } from "@/services/room"
 import { getStudentAttendance } from "@/services/attendance"
+import { cn } from "@/lib/utils"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -197,7 +198,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
     ? [
         { id: "overview", label: "Overview", icon: LayoutGrid },
         { id: "rooms", label: "Create Room + Event Name", icon: DoorOpen },
-        { id: "room_registry", label: "Room Registry", icon: FolderKanban },
+        { id: "room_registry", label: "Created Rooms", icon: FolderKanban },
         { id: "registry", label: "Student Users", icon: Users },
         { id: "terminal", label: "Facial Attendance", icon: ScanFace },
         { id: "logs", label: "Attendance & Fines", icon: ClipboardList },
@@ -265,7 +266,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
 
               <DropdownMenuItem onClick={handleSignOut} className="rounded-xl px-3 py-2.5 my-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all cursor-pointer">
                 <LogOut className="mr-3 h-4 w-4" />
-                <span className="font-black uppercase tracking-widest text-[10px]">Terminate Session</span>
+                <span className="font-black uppercase tracking-widest text-[10px]">Sign Out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -273,40 +274,48 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className={`flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 ${profile?.role === 'admin' && activeTab === 'overview' ? 'hidden' : ''}`}>
+        <div className={`flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 relative min-h-[48px] ${profile?.role === 'admin' && activeTab === 'overview' ? 'hidden' : ''}`}>
           {showTabs && (
-            <div className="flex items-center gap-4">
-              {profile?.role === 'admin' && activeTab !== 'overview' && (
-                <button 
-                  onClick={() => setActiveTab("overview")}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-secondary hover:bg-secondary/80 rounded-xl border border-border transition-all group"
-                >
-                  <ArrowLeft className="w-4 h-4 text-primary group-hover:-translate-x-1 transition-transform" />
-                  Back
-                </button>
-              )}
-              <PillTabs 
-                items={profile?.role === 'admin' && activeTab !== 'overview' 
-                  ? DASHBOARD_TABS.filter(t => t.id === activeTab) 
-                  : DASHBOARD_TABS
-                } 
-                active={activeTab} 
-                onChange={setActiveTab} 
-                className="mb-0" 
-              />
-            </div>
+            <>
+              {/* Left: Back Action */}
+              <div className="flex items-center gap-4 z-10">
+                {profile?.role === 'admin' && activeTab !== 'overview' && (
+                  <button 
+                    onClick={() => setActiveTab("overview")}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-secondary/50 hover:bg-secondary rounded-xl border border-border transition-all group backdrop-blur-sm"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-primary group-hover:-translate-x-1 transition-transform" />
+                    Back
+                  </button>
+                )}
+              </div>
+
+              {/* Center: Navigation Tabs */}
+              <div className="md:absolute md:left-1/2 md:-translate-x-1/2 z-0">
+                <PillTabs 
+                  items={profile?.role === 'admin' && activeTab !== 'overview' 
+                    ? DASHBOARD_TABS.filter(t => t.id === activeTab) 
+                    : DASHBOARD_TABS
+                  } 
+                  active={activeTab} 
+                  onChange={setActiveTab} 
+                  className="mb-0" 
+                />
+              </div>
+            </>
           )}
 
-          <div className="flex items-center gap-3">
+          {/* Right: System Badges */}
+          <div className="flex flex-col items-end gap-1.5 z-10">
+            <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-wider opacity-60">
+              v1.1.0-alpha
+            </Badge>
             {profile?.role === 'admin' && (
-              <Badge variant="outline" className="text-primary border-primary/20 bg-primary/10 gap-1 px-3 py-1">
+              <Badge variant="outline" className="text-primary border-primary/20 bg-primary/10 gap-1 px-3 py-1 shadow-sm">
                 <Lock className="w-3 h-3" />
                 Admin Mode
               </Badge>
             )}
-            <Badge variant="secondary" className="font-mono text-[10px] uppercase tracking-wider">
-              v1.1.0-alpha
-            </Badge>
           </div>
         </div>
         
@@ -320,20 +329,20 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         {/* Admin: Rooms Tab (Create Only) */}
         {profile?.role === 'admin' ? (
           <TabsContent value="rooms" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground italic uppercase italic font-black">Create Room + Event Name</h2>
-              <p className="text-sm text-muted-foreground">Initialize specific room locations and event designations.</p>
+            <div className="flex flex-col items-center text-center gap-1 mb-4">
+              <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Create Room + Event Name</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">Initialize specific room locations and event designations.</p>
             </div>
             <RoomList view="create" />
           </TabsContent>
         ) : null}
 
-        {/* Admin: Room Registry Tab (List Only) */}
+        {/* Admin: Created Rooms Tab (List Only) */}
         {profile?.role === 'admin' ? (
           <TabsContent value="room_registry" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground italic uppercase italic font-black">Room Registry</h2>
-              <p className="text-sm text-muted-foreground">Monitor and manage all active attendance sessions.</p>
+            <div className="flex flex-col items-center text-center gap-1 mb-4">
+              <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Created Rooms</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">Monitor and manage all active attendance sessions.</p>
             </div>
             <RoomList view="list" />
           </TabsContent>
@@ -342,9 +351,9 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         {/* Admin: Logs Tab */}
         {profile?.role === 'admin' ? (
           <TabsContent value="logs" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground">Attendance Logs</h2>
-              <p className="text-sm text-muted-foreground">View real-time attendance and fines.</p>
+            <div className="flex flex-col items-center text-center gap-1 mb-4">
+              <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Attendance Logs</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">View real-time attendance and fines.</p>
             </div>
             <AttendanceLogs roomId={profile?.last_room_id || ""} view={activeView} />
           </TabsContent>
@@ -353,9 +362,9 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
         {/* Admin: Student Registry Tab */}
         {profile?.role === 'admin' ? (
           <TabsContent value="registry" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-2xl font-semibold text-foreground">Student Registry</h2>
-              <p className="text-sm text-muted-foreground">Manage all registered students and their access.</p>
+            <div className="flex flex-col items-center text-center gap-1 mb-4">
+              <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Student Registry</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">Manage all registered students and their access.</p>
             </div>
             <StudentRegistry />
           </TabsContent>
@@ -392,15 +401,41 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
                   adminRooms.map((room) => (
                     <Card 
                       key={room.id} 
-                      className={`cursor-pointer transition-all hover:scale-[1.02] active:scale-95 rounded-3xl border-2 ${selectedTerminalRoom === room.id ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/30'}`}
+                      className={cn(
+                        "group cursor-pointer relative overflow-hidden bg-card/30 border-border/50 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full",
+                        selectedTerminalRoom === room.id 
+                          ? "border-primary/60 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)] ring-2 ring-primary/20 scale-[1.02]" 
+                          : "hover:border-primary/40 hover:scale-[1.01]"
+                      )}
                       onClick={() => {
                         setSelectedTerminalRoom(room.id)
                         setIsSelectingRoom(false)
                       }}
                     >
-                      <CardHeader className="p-5">
-                        <CardTitle className="text-lg font-black uppercase italic truncate">{room.name}</CardTitle>
-                        <CardDescription className="text-[10px] font-bold uppercase tracking-wider line-clamp-1">{room.event_name || "Regular Session"}</CardDescription>
+                      {/* Status Indicator Bar */}
+                      <div className={cn(
+                        "absolute top-0 left-0 w-full h-1.5 transition-all duration-500",
+                        room.is_active ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-transparent"
+                      )} />
+                      
+                      <CardHeader className="p-8 relative z-10">
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-primary/60 italic leading-none">Terminal Room</p>
+                            <CardTitle className="text-2xl font-black uppercase italic truncate tracking-tight">{room.name}</CardTitle>
+                            <p className="text-xs font-bold text-muted-foreground/80 truncate leading-tight">{room.event_name || "Regular Session"}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 pt-2">
+                             <div className={cn(
+                               "w-2 h-2 rounded-full",
+                               room.is_active ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-muted-foreground/20"
+                             )} />
+                             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                               {room.is_active ? "Live Session" : "Standby"}
+                             </span>
+                          </div>
+                        </div>
                       </CardHeader>
                     </Card>
                   ))

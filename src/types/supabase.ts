@@ -64,6 +64,9 @@ export interface Database {
           pm_time_in_end: string | null
           pm_time_out_start: string | null
           pm_time_out_end: string | null
+          am_fine_amount: number | null
+          pm_fine_amount: number | null
+          is_active: boolean | null
           created_at: string
         }
         Insert: {
@@ -88,6 +91,9 @@ export interface Database {
           pm_time_in_end?: string | null
           pm_time_out_start?: string | null
           pm_time_out_end?: string | null
+          am_fine_amount?: number | null
+          pm_fine_amount?: number | null
+          is_active?: boolean | null
           created_at?: string
         }
         Update: {
@@ -104,6 +110,7 @@ export interface Database {
           end_time_am?: string | null
           start_time_pm?: string | null
           end_time_pm?: string | null
+          is_active?: boolean | null
           am_time_in_start?: string | null
           am_time_in_end?: string | null
           am_time_out_start?: string | null
@@ -112,6 +119,8 @@ export interface Database {
           pm_time_in_end?: string | null
           pm_time_out_start?: string | null
           pm_time_out_end?: string | null
+          am_fine_amount?: number | null
+          pm_fine_amount?: number | null
           created_at?: string
         }
       }

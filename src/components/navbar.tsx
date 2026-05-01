@@ -20,12 +20,7 @@ import Link from "next/link";
 
 
 
-const navLinks = [
-  { label: "Home", href: "/#home" },
-  { label: "Features", href: "/#features" },
-  { label: "How It Works", href: "/#how-it-works" },
-  { label: "Pricing", href: "/#pricing" },
-];
+const navLinks: any[] = [];
 
 export function Navbar({ user }: { user: any }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -43,37 +38,29 @@ export function Navbar({ user }: { user: any }) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/20 bg-background/60 backdrop-blur-2xl transition-all">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
-        <a href="/#home" className="flex items-center gap-3 group transition-all">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-[0_0_15px_rgba(108,71,255,0.3)] group-hover:scale-110 transition-transform">
-            <span className="text-base font-black text-primary-foreground">F</span>
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-center px-4 sm:px-6 lg:px-8 relative">
+        {/* Centered System Brand Section */}
+        <div className="flex items-center gap-4 group transition-all">
+          {/* Logo Box */}
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-[0_0_20px_rgba(108,71,255,0.4)] group-hover:scale-110 transition-transform shrink-0">
+            <span className="text-xl font-black text-primary-foreground">F</span>
           </div>
+
+          {/* Text Section */}
           <div className="flex flex-col items-start gap-0">
-            <span className="text-2xl font-black tracking-widest text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent uppercase">
+            <span className="text-base md:text-lg font-black tracking-widest text-foreground bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent uppercase leading-tight">
               {siteConfig.name}
             </span>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight leading-none">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.2em] leading-none mt-1 opacity-60">
               {siteConfig.description}
             </span>
           </div>
-        </a>
+        </div>
 
-        {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-2 px-1.5 py-1.5 rounded-2xl bg-secondary/30 border border-border/20 backdrop-blur-sm">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="px-5 py-2 text-sm font-bold text-muted-foreground rounded-xl hover:text-foreground hover:bg-secondary/50 transition-all"
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
 
-        {/* CTA */}
-        <div className="hidden md:flex items-center gap-4">
+
+        {/* User Account Dropdown (Absolute Right) */}
+        <div className="absolute right-4 sm:right-6 lg:right-8 top-1/2 -translate-y-1/2 flex items-center gap-4">
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-3 bg-secondary/30 hover:bg-secondary/50 active:scale-[0.98] transition-all rounded-2xl px-2 py-2 pr-5 border border-border/20 shadow-xl group cursor-pointer">

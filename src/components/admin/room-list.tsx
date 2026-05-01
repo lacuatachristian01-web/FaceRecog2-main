@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createRoom, deleteRoom, getAdminRooms, Room, removeStudentFromRoom, getRoomParticipants, approveStudent } from "@/services/room";
+import { createRoom, deleteRoom, getAdminRooms, Room, removeStudentFromRoom, getRoomParticipants, approveStudent, toggleRoomStatus } from "@/services/room";
 import { timeIn, timeOut, getTodayStatus } from "@/services/attendance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X, Check, Copy, DoorOpen } from "lucide-react";
+import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X, Check, Copy, DoorOpen, Power, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ export function RoomList({ view }: { view?: string | null }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [newEventName, setNewEventName] = useState("");
-  const [newEventType, setNewEventType] = useState("University");
+  const [newEventType, setNewEventType] = useState("University Event");
   const [newEventDate, setNewEventDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Morning Session Windows
@@ -42,6 +42,12 @@ export function RoomList({ view }: { view?: string | null }) {
   // Session Toggles
   const [isAmEnabled, setIsAmEnabled] = useState(true);
   const [isPmEnabled, setIsPmEnabled] = useState(true);
+  const [isActive, setIsActive] = useState(true);
+  
+  // Fine Amounts
+  const [amFineAmount, setAmFineAmount] = useState(50);
+  const [pmFineAmount, setPmFineAmount] = useState<number>(50);
+  const [isToggling, setIsToggling] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRooms();
@@ -103,7 +109,10 @@ export function RoomList({ view }: { view?: string | null }) {
           isPmEnabled ? pmTimeOutEnd : undefined,
           newEventDate,
           newEventType,
-          editingRoom.id
+          editingRoom.id,
+          amFineAmount,
+          pmFineAmount,
+          isActive
         );
         toast.success("Room updated successfully");
         setEditingRoom(null);
@@ -122,7 +131,11 @@ export function RoomList({ view }: { view?: string | null }) {
           isPmEnabled ? pmTimeOutStart : undefined,
           isPmEnabled ? pmTimeOutEnd : undefined,
           newEventDate,
-          newEventType
+          newEventType,
+          undefined,
+          amFineAmount,
+          pmFineAmount,
+          isActive
         );
         setSuccessRoom({
           name: newRoomName,
@@ -160,6 +173,9 @@ export function RoomList({ view }: { view?: string | null }) {
     setPmTimeInEnd(room.pm_time_in_end || "13:30");
     setPmTimeOutStart(room.pm_time_out_start || "16:30");
     setPmTimeOutEnd(room.pm_time_out_end || "17:00");
+    setAmFineAmount(room.am_fine_amount || 50);
+    setPmFineAmount(room.pm_fine_amount || 50);
+    setIsActive(room.is_active ?? true);
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -407,7 +423,7 @@ export function RoomList({ view }: { view?: string | null }) {
                             className="w-3 h-3 accent-orange-500"
                          />
                          <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">
-                            {isAmEnabled ? "Window Allocation Active" : "Session Disabled"}
+                            {isAmEnabled ? "Session Allocation Active" : "Session Disabled"}
                          </p>
                       </div>
                     </div>
@@ -429,6 +445,19 @@ export function RoomList({ view }: { view?: string | null }) {
                         />
                       </div>
                     ))}
+                    <div className="col-span-2 space-y-2.5 pt-4 border-t border-orange-500/10">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-orange-500/60 ml-1 italic">Morning Lateness Fine</label>
+                      <div className="relative">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-orange-500 font-black italic">₱</span>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          value={amFineAmount}
+                          onChange={(e) => setAmFineAmount(Number(e.target.value))}
+                          className="h-14 rounded-xl bg-background/60 border-border/40 focus:border-orange-500/40 focus:ring-orange-500/5 transition-all pl-10 pr-5 font-bold shadow-inner"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -447,7 +476,7 @@ export function RoomList({ view }: { view?: string | null }) {
                             className="w-3 h-3 accent-blue-500"
                          />
                          <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest opacity-60">
-                            {isPmEnabled ? "Window Allocation Active" : "Session Disabled"}
+                            {isPmEnabled ? "Session Allocation Active" : "Session Disabled"}
                          </p>
                       </div>
                     </div>
@@ -469,6 +498,19 @@ export function RoomList({ view }: { view?: string | null }) {
                         />
                       </div>
                     ))}
+                    <div className="col-span-2 space-y-2.5 pt-4 border-t border-blue-500/10">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-blue-500/60 ml-1 italic">Afternoon Lateness Fine</label>
+                      <div className="relative">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-500 font-black italic">₱</span>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          value={pmFineAmount}
+                          onChange={(e) => setPmFineAmount(Number(e.target.value))}
+                          className="h-14 rounded-xl bg-background/60 border-border/40 focus:border-blue-500/40 focus:ring-blue-500/5 transition-all pl-10 pr-5 font-bold shadow-inner"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -517,50 +559,147 @@ export function RoomList({ view }: { view?: string | null }) {
             </Card>
           ) : (
             rooms.map((room) => (
-              <Card key={room.id} className="group relative overflow-hidden bg-card/30 border-border/50 hover:border-primary/40 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full">
+              <Card 
+                key={room.id} 
+                className={cn(
+                  "group relative overflow-hidden bg-card/30 border-border/50 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full",
+                  room.is_active 
+                    ? "border-green-500/30 shadow-[0_0_25px_-5px_rgba(34,197,94,0.15)] ring-1 ring-green-500/10" 
+                    : "hover:border-primary/40 hover:shadow-2xl"
+                )}
+              >
+                {/* Status Indicator Bar */}
+                <div className={cn(
+                  "absolute top-0 left-0 w-full h-1.5 transition-all duration-500",
+                  room.is_active ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-transparent"
+                )} />
+                
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
-                <CardHeader className="pb-6 pt-8 px-8 relative z-10">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="space-y-4 flex-1">
-                      <CardTitle className="text-3xl font-black tracking-tight text-foreground uppercase italic leading-none group-hover:text-primary transition-colors">
-                        {room.name} {room.event_name ? `— ${room.event_name}` : ''}
-                      </CardTitle>
-                      <div className="flex flex-wrap items-center gap-y-3 gap-x-6">
-                        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                          <span className="text-[10px] font-black uppercase tracking-[0.1em] text-green-500/90">Active Session</span>
+                
+                <CardHeader className="pb-4 pt-8 px-8 relative z-10">
+                  <div className="flex flex-col space-y-6">
+                    {/* Top Section: Identity */}
+                    <div className="flex flex-col space-y-4">
+                      <div className="w-full relative min-h-[80px] flex flex-col items-center">
+                        {/* Left: Category Label */}
+                        <div className="absolute left-0 top-0">
+                          <p className={cn(
+                            "text-[9px] font-black uppercase tracking-[0.3em] italic leading-none transition-colors",
+                            room.event_type === 'University Event' ? "text-blue-500" :
+                            room.event_type === 'College Event' ? "text-orange-500" :
+                            "text-primary/60"
+                          )}>
+                            {room.event_type || "Room & Event"}
+                          </p>
                         </div>
-                        {room.event_date && (
-                          <div className="flex items-center gap-2.5">
-                            <Calendar className="w-3.5 h-3.5 text-primary/50" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground italic">
-                              {new Date(room.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          </div>
-                        )}
-                        {room.event_type && (
-                          <Badge variant="outline" className="h-6 border-primary/30 bg-primary/10 text-[9px] font-black uppercase tracking-widest text-primary px-3 rounded-lg">
-                            {room.event_type}
-                          </Badge>
+
+                        {/* Right: Management Actions */}
+                        <div className="absolute right-0 top-0 flex gap-1.5 z-20">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-xl bg-secondary/20 hover:bg-destructive/20 hover:text-destructive transition-all border border-border/10 shadow-sm"
+                            onClick={() => handleDeleteRoom(room.id)}
+                            title="Delete Room"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* CENTERED: Room Name Only */}
+                        <CardTitle className={cn(
+                          "text-4xl font-black tracking-tight uppercase italic leading-none transition-colors mt-6 text-center",
+                          room.is_active ? "text-green-500" : "text-foreground group-hover:text-primary"
+                        )}>
+                          {room.name}
+                        </CardTitle>
+                      </div>
+
+                      {/* Left-aligned event info */}
+                      <div className="space-y-1">
+                        {room.event_name && (
+                          <p className="text-3xl font-black tracking-tight text-foreground/90 leading-tight uppercase italic">
+                            {room.event_name}
+                          </p>
                         )}
                       </div>
+
+                      <div className="flex flex-wrap items-center gap-y-2 gap-x-3 pt-1">
+                          {room.event_date && (
+                            <div className="flex items-center gap-1.5 bg-secondary/10 px-2.5 py-1 rounded-full border border-border/20 shadow-inner">
+                              <Calendar className="w-3 h-3 text-primary/50" />
+                              <span className="text-[9px] font-black uppercase tracking-[0.05em] text-muted-foreground italic">
+                                {new Date(room.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-12 w-12 rounded-2xl bg-secondary/30 hover:bg-primary/20 hover:text-primary transition-all"
-                        onClick={() => handleEditRoom(room)}
+
+                    {/* Bottom Section: Active Status Toggle */}
+                    <div className={cn(
+                      "relative group/status flex items-center justify-between p-1 rounded-2xl border backdrop-blur-xl transition-all duration-500 overflow-hidden",
+                      room.is_active 
+                        ? "bg-green-500/5 border-green-500/20 shadow-[0_0_20px_-5px_rgba(34,197,94,0.1)]" 
+                        : "bg-destructive/5 border-destructive/20 shadow-[0_0_20px_-5px_rgba(239,68,68,0.1)]"
+                    )}>
+                      {/* Status Glow Overlay */}
+                      <div className={cn(
+                        "absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-transparent animate-pulse",
+                        room.is_active ? "from-green-500/5 to-green-500/5" : "from-destructive/5 to-destructive/5"
+                      )} />
+                      
+                      <div className="flex items-center gap-3 pl-4 relative z-10">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          room.is_active 
+                            ? "bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.7)]" 
+                            : "bg-destructive animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.7)]"
+                        )} />
+                        <div className="flex flex-col">
+                          <p className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground/50 leading-none mb-1">Status</p>
+                          <p className={cn(
+                            "text-xs font-black uppercase tracking-widest leading-none",
+                            room.is_active ? "text-green-500" : "text-destructive/80"
+                          )}>
+                            {room.is_active ? "ACTIVE NOW" : "CLOSED"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isToggling === room.id}
+                        onClick={async () => {
+                          setIsToggling(room.id);
+                          try {
+                            await toggleRoomStatus(room.id, room.is_active || false);
+                            toast.success(room.is_active ? "Session Deactivated" : "Session Activated");
+                            fetchRooms();
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to update status");
+                          } finally {
+                            setIsToggling(null);
+                          }
+                        }}
+                        className={cn(
+                          "h-10 px-5 rounded-xl flex items-center gap-2 transition-all active:scale-[0.98] shadow-sm relative z-10",
+                          room.is_active 
+                            ? "bg-green-500 text-white hover:bg-green-600 shadow-lg shadow-green-500/20" 
+                            : "bg-destructive text-white hover:bg-destructive/90 shadow-lg shadow-destructive/20"
+                        )}
                       >
-                        <Plus className="h-5 w-5" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-12 w-12 rounded-2xl bg-secondary/30 hover:bg-destructive/20 hover:text-destructive transition-all"
-                        onClick={() => handleDeleteRoom(room.id)}
-                      >
-                        <Trash2 className="h-5 w-5" />
+                        {isToggling === room.id ? (
+                          <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Power className="w-4 h-4" />
+                            <span className="font-black uppercase tracking-widest text-[9px]">
+                              {room.is_active ? "END" : "START"}
+                            </span>
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -588,7 +727,7 @@ export function RoomList({ view }: { view?: string | null }) {
                           <div className="space-y-3">
                               <div className="flex flex-col">
                                  <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", room.am_time_in_start ? "text-primary/50" : "text-muted-foreground/30")}>
-                                   Morning Window {!room.am_time_in_start && "(Disabled)"}
+                                   Morning Session {!room.am_time_in_start && "(Disabled)"}
                                  </span>
                                  {room.am_time_in_start && (
                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
@@ -599,7 +738,7 @@ export function RoomList({ view }: { view?: string | null }) {
                               </div>
                               <div className="flex flex-col pt-3 border-t border-primary/5">
                                  <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", room.pm_time_in_start ? "text-primary/50" : "text-muted-foreground/30")}>
-                                   Afternoon Window {!room.pm_time_in_start && "(Disabled)"}
+                                   Afternoon Session {!room.pm_time_in_start && "(Disabled)"}
                                  </span>
                                  {room.pm_time_in_start && (
                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
@@ -639,7 +778,7 @@ export function RoomList({ view }: { view?: string | null }) {
                     <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                        <Users className="w-5 h-5" />
                     </div>
-                    <CardTitle className="text-2xl font-black tracking-tight uppercase italic">Room Registry</CardTitle>
+                    <CardTitle className="text-2xl font-black tracking-tight uppercase italic">Created Rooms</CardTitle>
                   </div>
                   <div className="flex items-center gap-2 ml-13">
                     <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Access & Authorization Control</p>

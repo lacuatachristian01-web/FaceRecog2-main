@@ -30,7 +30,10 @@ export async function createRoom(
   pmTimeOutEnd?: string,
   sessionDate?: string,
   eventType?: string,
-  id?: string
+  id?: string,
+  amFineAmount?: number,
+  pmFineAmount?: number,
+  isActive?: boolean
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -58,7 +61,10 @@ export async function createRoom(
         pm_time_out_start: pmTimeOutStart,
         pm_time_out_end: pmTimeOutEnd,
         event_date: sessionDate,
-        event_type: eventType
+        event_type: eventType,
+        am_fine_amount: amFineAmount,
+        pm_fine_amount: pmFineAmount,
+        is_active: isActive
       })
       .eq('id', id)
       .select()
@@ -94,7 +100,10 @@ export async function createRoom(
       pm_time_out_start: pmTimeOutStart,
       pm_time_out_end: pmTimeOutEnd,
       event_date: sessionDate,
-      event_type: eventType
+      event_type: eventType,
+      am_fine_amount: amFineAmount,
+      pm_fine_amount: pmFineAmount,
+      is_active: isActive ?? true
     })
     .select()
     .single();
@@ -120,11 +129,12 @@ export async function joinRoom(code: string) {
   // 1. Find the room by code
   const { data: room, error: roomError } = await supabase
     .from('rooms')
-    .select('id')
+    .select('id, is_active')
     .eq('code', code.toUpperCase())
     .single();
 
   if (roomError || !room) throw new Error('Invalid room code');
+  if (room.is_active === false) throw new Error('This room is currently inactive');
 
   // 2. Add student to participants (pending approval)
   const { error: joinError } = await supabase
@@ -251,4 +261,22 @@ export async function getRoomParticipants(roomId: string) {
 
   if (error) throw error;
   return data;
+}
+
+export async function toggleRoomStatus(roomId: string, currentStatus: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const newStatus = !currentStatus;
+
+  const { error } = await supabase
+    .from('rooms')
+    .update({ is_active: newStatus })
+    .eq('id', roomId)
+    .eq('admin_id', user.id);
+
+  if (error) throw error;
+  revalidatePath('/dashboard');
+  return { success: true };
 }

@@ -118,7 +118,7 @@ export function AdminOverview({ onNavigate }: AdminOverviewProps) {
           </Card>
         </button>
 
-        {/* Secondary Action: Room Registry */}
+        {/* Secondary Action: Created Rooms */}
         <button 
           onClick={() => onNavigate("room_registry")}
           className="md:col-span-6 group focus:outline-none"
@@ -129,7 +129,7 @@ export function AdminOverview({ onNavigate }: AdminOverviewProps) {
             </div>
             <div className="space-y-3 flex-1">
               <h3 className="text-2xl font-black tracking-tight text-foreground uppercase italic">
-                Room Registry
+                Created Rooms
               </h3>
               <p className="text-sm text-muted-foreground font-medium leading-relaxed px-2">
                 Oversee all registered students across your active rooms and managed sessions.

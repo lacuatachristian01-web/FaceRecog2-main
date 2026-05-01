@@ -50,8 +50,9 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [allParticipants, setAllParticipants] = useState<any[]>([]);
   const [allRegisteredStudents, setAllRegisteredStudents] = useState<any[]>([]);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [showFlash, setShowFlash] = useState(false);
   const detectionStartTime = useRef<number | null>(null);
-  const AUTO_TRIGGER_DELAY = 500; // Ultra-fast auto-capture for "instant" feel
+  const AUTO_TRIGGER_DELAY = 1200; // Calibrated for "Scanning" vibe visibility
 
   useEffect(() => {
     if (roomId && userId) {
@@ -174,11 +175,13 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   const elapsed = Date.now() - detectionStartTime.current;
                   setAutoTriggerProgress(Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100));
 
-                  if (elapsed >= AUTO_TRIGGER_DELAY) {
-                    detectionStartTime.current = null;
-                    setAutoTriggerProgress(0);
-                    
-                    if (isGlobal) {
+                    if (elapsed >= AUTO_TRIGGER_DELAY) {
+                      detectionStartTime.current = null;
+                      setAutoTriggerProgress(0);
+                      setShowFlash(true);
+                      setTimeout(() => setShowFlash(false), 150);
+                      
+                      if (isGlobal) {
                       const isEnrolled = allParticipants.some(p => p.id === bestMatch.id);
                       if (!isEnrolled) {
                         setWarningMessage(`${bestMatch.full_name} is not enrolled or approved in this room.`);
@@ -410,6 +413,26 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         
         <CardContent className="p-0">
           <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
+            {/* Quick Guide Overlay */}
+            <AnimatePresence>
+              {isStreaming && !faceDetected && status === 'idle' && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center bg-black/20"
+                >
+                  <div className="flex flex-col items-center gap-4 text-white/80">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full border-2 border-dashed border-white/40 flex items-center justify-center animate-[spin_4s_linear_infinite]">
+                        <Scan className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-[0.3em] animate-pulse">Position Face in Frame</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {isStreaming ? (
               <>
                 <video
@@ -427,9 +450,45 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                 {/* Visual Guides */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className={cn(
-                    "w-[240px] h-[300px] border-2 rounded-[3rem] transition-all duration-500 relative",
-                    faceDetected ? "border-primary scale-105 shadow-[0_0_40px_rgba(59,130,246,0.3)]" : "border-white/10 scale-100"
+                    "w-[280px] h-[350px] border border-white/10 rounded-[4rem] transition-all duration-500 relative flex items-center justify-center",
+                    faceDetected ? "border-primary/50 scale-105 shadow-[0_0_60px_rgba(59,130,246,0.2)]" : "scale-100"
                   )}>
+                    {/* Scanning Line Animation */}
+                    <AnimatePresence>
+                      {faceDetected && !isProcessing && status === 'idle' && (
+                        <motion.div
+                          initial={{ top: "10%", opacity: 0 }}
+                          animate={{ 
+                            top: ["10%", "90%", "10%"],
+                            opacity: [0, 1, 1, 1, 0]
+                          }}
+                          transition={{ 
+                            duration: 2.5, 
+                            repeat: Infinity,
+                            ease: "linear"
+                          }}
+                          className="absolute left-4 right-4 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent z-10 shadow-[0_0_15px_rgba(59,130,246,0.8)]"
+                        />
+                      )}
+                    </AnimatePresence>
+
+                    {/* Corner Brackets */}
+                    <div className="absolute inset-0">
+                      <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-primary rounded-tl-[3rem] opacity-40" />
+                      <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-primary rounded-tr-[3rem] opacity-40" />
+                      <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-primary rounded-bl-[3rem] opacity-40" />
+                      <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-[3rem] opacity-40" />
+                    </div>
+
+                    {/* Inner Pulse Circle */}
+                    {faceDetected && (
+                      <motion.div 
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-10 border border-primary/30 rounded-[3rem]"
+                      />
+                    )}
+
                     {/* Identification Label */}
                     <AnimatePresence>
                       {matchedStudent && status === 'idle' && (
@@ -437,64 +496,64 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 10 }}
-                          className="absolute -top-20 left-1/2 -translate-x-1/2 bg-primary/95 backdrop-blur-xl px-6 py-3 rounded-2xl border border-white/20 shadow-2xl min-w-[200px]"
+                          className="absolute -top-24 left-1/2 -translate-x-1/2 bg-primary/95 backdrop-blur-xl px-6 py-3 rounded-2xl border border-white/20 shadow-2xl min-w-[200px]"
                         >
                           <div className="flex flex-col items-center gap-1">
                             <div className="flex items-center gap-2">
                               <Sparkles className="h-4 w-4 text-yellow-400 animate-pulse" />
                               <span className="text-[10px] font-black text-white uppercase tracking-widest">{matchedStudent.full_name}</span>
                             </div>
-                            <span className="text-[8px] font-bold text-white/60 uppercase tracking-tight">Exact Match Found</span>
+                            <span className="text-[8px] font-bold text-white/60 uppercase tracking-tight">Biometric Profile Verified</span>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
 
                     {/* Dynamic Status Labels */}
-              {faceDetected && !isProcessing && status === 'idle' && (
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-3"
-                  >
-                    {autoTriggerProgress > 0 ? (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Analyzing Face...</span>
-                      </>
-                    ) : matchedStudent?.full_name === "Unrecognized" ? (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Face Unrecognized</span>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-blue-500/50" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Awaiting Biometrics</span>
-                      </>
-                    )}
-                  </motion.div>
-                </div>
-              )}
-
-              {/* Auto-Trigger Progress Ring */}
                     {faceDetected && !isProcessing && status === 'idle' && (
-                      <svg className="absolute inset-[-10px] w-[calc(100%+20px)] h-[calc(100%+20px)] rotate-[-90deg]">
+                      <div className="absolute bottom-[-60px] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2 w-full">
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-3"
+                        >
+                          {autoTriggerProgress > 0 ? (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Scanning Data Points... {Math.round(autoTriggerProgress)}%</span>
+                            </>
+                          ) : matchedStudent?.full_name === "Unrecognized" ? (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Access Denied: Unrecognized</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-blue-500/50" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Stabilizing Image</span>
+                            </>
+                          )}
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Auto-Trigger Progress Ring */}
+                    {faceDetected && !isProcessing && status === 'idle' && (
+                      <svg className="absolute inset-[-20px] w-[calc(100%+40px)] h-[calc(100%+40px)] rotate-[-90deg]">
                         <circle
                           cx="50%"
                           cy="50%"
-                          r="150"
-                          className="fill-none stroke-blue-500/20 stroke-[4]"
+                          r="170"
+                          className="fill-none stroke-blue-500/10 stroke-[2]"
                         />
                         <motion.circle
                           cx="50%"
                           cy="50%"
-                          r="150"
-                          initial={{ strokeDashoffset: 942 }}
-                          animate={{ strokeDashoffset: 942 - (942 * autoTriggerProgress) / 100 }}
-                          style={{ strokeDasharray: 942 }}
-                          className="fill-none stroke-blue-500 stroke-[4] transition-all duration-100"
+                          r="170"
+                          initial={{ strokeDashoffset: 1068 }}
+                          animate={{ strokeDashoffset: 1068 - (1068 * autoTriggerProgress) / 100 }}
+                          style={{ strokeDasharray: 1068 }}
+                          className="fill-none stroke-primary stroke-[4] transition-all duration-100 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"
                         />
                       </svg>
                     )}
@@ -513,6 +572,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                     </div>
                   </motion.div>
                 )}
+
+                {/* Camera Flash Effect */}
+                <AnimatePresence>
+                  {showFlash && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.1 }}
+                      className="absolute inset-0 bg-white z-50 pointer-events-none"
+                    />
+                  )}
+                </AnimatePresence>
               </>
             ) : (
               <div className="text-center p-12">
