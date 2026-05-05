@@ -57,6 +57,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [showFlash, setShowFlash] = useState(false);
   const detectionStartTime = useRef<number | null>(null);
   const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
+  const [scanningStage, setScanningStage] = useState<'capturing' | 'analyzing' | 'matching' | 'recording' | null>(null);
   const AUTO_TRIGGER_DELAY = 2000; // Increased to 2 seconds as requested
 
   useEffect(() => {
@@ -372,6 +373,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
 
   const processCapturedAttendance = async (video: HTMLVideoElement) => {
     try {
+      setScanningStage('analyzing');
       // 1. Capture the face frame
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
@@ -385,8 +387,9 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setCapturedImage(imageData);
 
       // 2. Perform the FINAL SCAN on the captured image
+      // Reduced inputSize to 128 for extreme speed
       const capturedDetection = await faceapi
-        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 }))
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.4 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -394,9 +397,11 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         toast.error("Not Successfully Time In: Capture lost focus");
         setIsProcessing(false);
         setCapturedImage(null);
+        setScanningStage(null);
         return;
       }
 
+      setScanningStage('matching');
       // 3. High-Speed Database Search via pgvector
       const result = await matchFace(Array.from(capturedDetection.descriptor), 0.6);
       
@@ -404,12 +409,14 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         toast.error(`Search Error: ${result.error}`);
         setIsProcessing(false);
         setCapturedImage(null);
+        setScanningStage(null);
         return;
       }
 
       const bestMatch = result.data;
 
       if (bestMatch) {
+        setScanningStage('recording');
         if (isGlobal) {
           await processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
         } else {
@@ -432,6 +439,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       console.error("Capture process error:", err);
       setIsProcessing(false);
       setCapturedImage(null);
+    } finally {
+      setScanningStage(null);
     }
   };
 
@@ -663,8 +672,16 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                         <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center space-y-4">
                           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                           <div className="bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-primary/30 text-center">
-                            <p className="text-primary font-black uppercase tracking-[0.2em] italic text-xs animate-pulse">Biometric Analysis</p>
-                            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mt-1">Verifying Identity...</p>
+                            <p className="text-primary font-black uppercase tracking-[0.2em] italic text-xs animate-pulse">
+                              {scanningStage === 'analyzing' ? 'Analyzing Face...' : 
+                               scanningStage === 'matching' ? 'Matching Identity...' :
+                               scanningStage === 'recording' ? 'Finalizing...' : 'Processing...'}
+                            </p>
+                            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mt-1">
+                              {scanningStage === 'analyzing' ? 'Biometric Extraction' : 
+                               scanningStage === 'matching' ? 'Searching Database' :
+                               scanningStage === 'recording' ? 'Saving Attendance' : 'Please Hold Still'}
+                            </p>
                           </div>
                         </div>
                         {/* Scanning Line Animation */}
