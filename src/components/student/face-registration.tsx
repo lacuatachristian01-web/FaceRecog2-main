@@ -171,13 +171,13 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             if (!isLeveled) {
               setIsCorrectPosture(false);
               setGuideMessage("LEVEL YOUR FACE");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 15)); // Graceful decay instead of instant reset
+              setAutoCaptureProgress(prev => Math.max(0, prev - 5)); // Less punishing decay
               return;
             }
             if (!isLookingStraight) {
               setIsCorrectPosture(false);
               setGuideMessage("LOOK DIRECTLY AT CAMERA");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 15));
+              setAutoCaptureProgress(prev => Math.max(0, prev - 5));
               return;
             }
 
@@ -185,26 +185,26 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             if (isMaskSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR MASK");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
+              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
               return;
             }
             if (isCapSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR CAP");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
+              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
               return;
             }
             if (isGlassesSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR EYEGLASSES/SUNGLASSES");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
+              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
               return;
             }
 
             if (!isHighConfidence) {
               setIsCorrectPosture(false);
               setGuideMessage("FACE OBSCURED - CLEAR FACE");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
+              setAutoCaptureProgress(prev => Math.max(0, prev - 5));
               return;
             }
 
@@ -212,7 +212,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
             
             setAutoCaptureProgress(prev => {
-              const next = prev + 15; // 7-8 frames to capture (approx 600ms) - More stable
+              const next = prev + 25; // 4 frames to capture (approx 320ms) - Snappier
               if (next >= 100) {
                 setTimeout(() => {
                   clearInterval(interval);
@@ -225,12 +225,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           } else {
             setIsCorrectPosture(false);
             setGuideMessage("Center your face in the frame");
-            setAutoCaptureProgress(prev => Math.max(0, prev - 20));
+            setAutoCaptureProgress(prev => Math.max(0, prev - 10));
           }
         } else {
           setIsCorrectPosture(false);
           setGuideMessage("Finding face...");
-          setAutoCaptureProgress(prev => Math.max(0, prev - 30));
+          setAutoCaptureProgress(prev => Math.max(0, prev - 15));
         }
       }, 80); // Balanced interval for CPU reliability
     }
