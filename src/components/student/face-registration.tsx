@@ -269,67 +269,50 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     
     const video = videoRef.current;
     
-    // Safety check for video readiness before capture
+    // 1. Safety check for video readiness
     if (video.readyState < 2 || video.videoWidth <= 0) {
       console.warn("[FaceRegistration] Video not ready for auto-capture");
+      setAutoCaptureProgress(0); // Reset to try again
       return;
     }
 
-    setIsRegistering(true);
-    setGuideMessage("Processing Biometrics...");
-    
-    const canvas = document.createElement("canvas");
-    const targetSize = 256; 
-    canvas.width = targetSize;
-    canvas.height = targetSize;
-    const ctx = canvas.getContext("2d");
-    
-    if (ctx) {
-      // Mirror crop
-      ctx.scale(-1, 1);
+    try {
+      setIsRegistering(true);
+      setGuideMessage("Processing Biometrics...");
       
-      // Calculate crop from detection box
-      const { x, y, width, height } = detection.detection.box;
+      const canvas = document.createElement("canvas");
+      const targetSize = 256; 
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+      const ctx = canvas.getContext("2d");
       
-      // Safety check for valid dimensions
-      if (width <= 0 || height <= 0 || video.videoWidth <= 0) {
-        console.warn("[FaceRegistration] Invalid dimensions detected for capture:", { width, height, videoWidth: video.videoWidth });
-        setIsRegistering(false);
-        setStep("scanning");
-        startVideo(); // Restart if failed
-        return;
-      }
+      if (!ctx) throw new Error("Could not get canvas context");
 
-      const padding = 0.4;
-      const size = Math.max(1, Math.min(width * (1 + padding * 2), height * (1 + padding * 2)));
+      // 2. Calculate crop from detection box
+      const { x, y, width, height } = detection.detection.box;
+      const padding = 0.3; 
+      const size = Math.min(width * (1 + padding * 2), height * (1 + padding * 2), video.videoWidth, video.videoHeight);
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
-      // Simplified capture to avoid black frames
-      try {
-        const padding = 0.3; 
-        const size = Math.min(width * (1 + padding * 2), height * (1 + padding * 2), video.videoWidth, video.videoHeight);
-        const cropX = Math.max(0, x - width * padding);
-        const cropY = Math.max(0, y - height * padding);
-
-        // Draw centered crop - NO transforms to ensure stability
-        ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
-        
-        const imageData = canvas.toDataURL("image/jpeg", 0.95);
-        
-        setCapturedImage(imageData);
-        setDescriptor(Array.from(detection.descriptor));
-        
-        // Transition to preview - KEEP VIDEO RUNNING TO AVOID BLINK
-        setStep("captured");
-        setIsRegistering(false);
-      } catch (drawError) {
-        console.error("Canvas Draw Error:", drawError);
-        ctx.drawImage(video, 0, 0, targetSize, targetSize);
-        setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
-        setStep("captured");
-        setIsRegistering(false);
-      }
+      // 3. Draw directly (No complex transforms to avoid black frames)
+      ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
+      
+      const imageData = canvas.toDataURL("image/jpeg", 0.95);
+      
+      setCapturedImage(imageData);
+      setDescriptor(Array.from(detection.descriptor));
+      
+      // 4. Transition to preview
+      setStep("captured");
+    } catch (err) {
+      console.error("Auto-capture failed:", err);
+      toast.error("Scan failed. Please try again.");
+      setAutoCaptureProgress(0);
+      setStep("scanning");
+      startVideo();
+    } finally {
+      setIsRegistering(false);
     }
   };
 
