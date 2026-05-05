@@ -114,36 +114,19 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
   // 2. Real-time Detection Loop (ONLY for biometric mode)
   useEffect(() => {
-    let interval: any;
     if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
       interval = setInterval(async () => {
         const video = videoRef.current;
-        const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 256, // Faster detection
-            scoreThreshold: 0.1 // Maximum sensitivity
-          }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        if (!video || video.readyState < 2 || isRegistering) return;
+
+        // RAW SPEED: Minimal options for instant detection
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
 
         if (detection) {
-          setFaceDetected(true);
-          setIsCorrectPosture(true);
-          setGuideMessage("CAPTURING...");
-          setAutoCaptureProgress(100);
-          
-          // Instant handover to capture
-          setTimeout(() => {
-            clearInterval(interval);
-            handleAutoCapture(detection);
-          }, 0);
-        } else {
-          setFaceDetected(false);
-          setIsCorrectPosture(false);
-          setGuideMessage("Scanning...");
-          setAutoCaptureProgress(0);
+          // One-way ticket to capture
+          handleAutoCapture(detection);
         }
-      }, 80); // Balanced interval for CPU reliability
+      }, 50); // Faster polling
     }
     return () => clearInterval(interval);
   }, [isStreaming, isModelLoaded, step, registrationType]);
@@ -184,57 +167,38 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleAutoCapture = async (detection: any) => {
-    // 1. Immediate Lock-out
     if (isRegistering) return;
     
     const video = videoRef.current;
-    if (!video || video.readyState < 2 || video.videoWidth <= 0) {
-      console.warn("[FaceRegistration] Video not ready for auto-capture");
-      setAutoCaptureProgress(0);
-      return;
-    }
+    if (!video || video.readyState < 2) return;
 
     try {
       setIsRegistering(true);
+      setStep("captured"); // MOVE TO PREVIEW INSTANTLY
       
-      // 2. IMMEDIATE STEP CHANGE to provide visual feedback and stop the '100%' hang
-      setStep("captured");
-      setGuideMessage("Processing Scan...");
-
       const canvas = document.createElement("canvas");
-      const targetSize = 256; 
-      canvas.width = targetSize;
-      canvas.height = targetSize;
+      canvas.width = 300;
+      canvas.height = 300;
       const ctx = canvas.getContext("2d");
-      
-      if (!ctx) throw new Error("Could not get canvas context");
+      if (!ctx) return;
 
-      // 3. Extract dimensions
-      const { x, y, width, height } = detection.detection.box;
-      const padding = 0.3; 
-      const size = Math.min(width * (1 + padding * 2), height * (1 + padding * 2), video.videoWidth, video.videoHeight);
-      const cropX = Math.max(0, x - width * padding);
-      const cropY = Math.max(0, y - height * padding);
-
-      // 4. Draw to canvas
-      ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
+      // Direct draw for speed
+      ctx.drawImage(video, 0, 0, 300, 300);
       
-      // 5. Generate and set the image
-      const imageData = canvas.toDataURL("image/jpeg", 0.95);
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
       setCapturedImage(imageData);
-      setDescriptor(Array.from(detection.descriptor));
       
-      // Stop the camera now that we have the capture
-      stopVideo();
+      // Get descriptors in the background so UI stays smooth
+      const fullDetection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+        
+      if (fullDetection) {
+        setDescriptor(Array.from(fullDetection.descriptor));
+      }
     } catch (err) {
-      console.error("Auto-capture handover failed:", err);
-      toast.error("Capture failed. Restarting scanner...");
-      
-      // Reset everything on failure
+      console.error("Instant capture failed:", err);
       setStep("scanning");
-      setAutoCaptureProgress(0);
-      setIsRegistering(false);
-      startVideo();
     } finally {
       setIsRegistering(false);
     }
