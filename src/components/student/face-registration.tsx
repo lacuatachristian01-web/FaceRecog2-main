@@ -251,7 +251,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
   const handleCapture = async () => {
     const video = videoRef.current;
-    if (video.readyState < 2 || video.videoWidth <= 0) {
+    if (!video || video.readyState < 2 || video.videoWidth <= 0) {
       toast.error("Video not ready. Please wait.");
       return;
     }
@@ -298,7 +298,6 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     setIsRegistering(true);
     setGuideMessage("Processing Biometrics...");
     
-    const video = videoRef.current;
     const canvas = document.createElement("canvas");
     const targetSize = 256; 
     canvas.width = targetSize;
