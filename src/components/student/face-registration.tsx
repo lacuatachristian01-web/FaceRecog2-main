@@ -128,13 +128,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           setIsCorrectPosture(true);
           
           setAutoCaptureProgress(prev => {
-            if (prev >= 100) return 100; // Already triggered
+            if (prev >= 100) return 100; // Lock to 100
             const next = prev + 1.8; 
             if (next >= 100) {
-              setTimeout(() => {
-                clearInterval(interval);
-                handleAutoCapture(detection);
-              }, 0);
+              // TERMINATE INTERVAL IMMEDIATELY
+              if (interval) clearInterval(interval);
+              handleAutoCapture(detection);
               return 100;
             }
             return next;
@@ -194,7 +193,8 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
     try {
       setIsRegistering(true);
-      setStep("captured"); // MOVE TO PREVIEW INSTANTLY
+      setAutoCaptureProgress(0); // Reset UI instantly
+      setStep("captured"); // Shift to preview step instantly
       
       const canvas = document.createElement("canvas");
       canvas.width = 300;
