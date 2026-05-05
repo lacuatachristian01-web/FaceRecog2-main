@@ -114,6 +114,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
   // 2. Real-time Detection Loop (ONLY for biometric mode)
   useEffect(() => {
+    let interval: any;
     if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
       interval = setInterval(async () => {
         const video = videoRef.current;
