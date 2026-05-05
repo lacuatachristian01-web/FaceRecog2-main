@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import * as faceapi from "face-api.js";
@@ -249,7 +249,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   
                   if (!unrecognizedStartTime) setUnrecognizedStartTime(Date.now());
                   else if (Date.now() - unrecognizedStartTime > 3000) {
-                    toast.error("Face not recognized. Please try again.", { id: 'unrecognized-toast' });
+                    toast.error("Not Successfully Time In: Face Not Recognized", { id: 'unrecognized-toast' });
                     setUnrecognizedStartTime(Date.now());
                   }
                 }
@@ -351,7 +351,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         setMatchedStudent(null);
       }, 4000);
     } catch (err: any) {
-      toast.error(err.message || "Attendance failed");
+      toast.error(err.message || "Not Successfully Time In");
       setStatus('error');
     } finally {
       setIsProcessing(false);
@@ -406,21 +406,21 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         const result = await timeIn(roomId, sId, manualSession ? currentSession : undefined);
         if (result.error) throw new Error(result.error);
 
-        const msg = `Successfully Time In: ${sName}`;
+        const msg = `Time In Successfully: ${sName}`;
         setActionMessage(msg);
-        const utterance = new SpeechSynthesisUtterance(`Welcome, ${sName}. Time in successful.`);
+        const utterance = new SpeechSynthesisUtterance("Time In Successfully.");
         window.speechSynthesis.speak(utterance);
       } else {
         const result = await timeOut(roomId, sId);
         if (result.error) throw new Error(result.error);
 
-        const msg = `Successfully Time Out: ${sName}`;
+        const msg = `Time Out Successfully: ${sName}`;
         setActionMessage(msg);
-        const utterance = new SpeechSynthesisUtterance(`Goodbye, ${sName}. Time out successful.`);
+        const utterance = new SpeechSynthesisUtterance("Time Out Successfully.");
         window.speechSynthesis.speak(utterance);
       }
       setStatus('success');
-      toast.success(`${type === 'in' ? "Time In" : "Time Out"}: ${sName}`);
+      toast.success(`${type === 'in' ? "Time In Successfully" : "Time Out Successfully"}: ${sName}`);
       
       // Auto-reset after success for global mode
       setTimeout(() => {
@@ -428,7 +428,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         setMatchedStudent(null);
       }, 3000);
     } catch (err: any) {
-      toast.error(err.message || "Attendance failed");
+      toast.error(err.message || "Not Successfully Time In");
       setStatus('error');
     } finally {
       setIsProcessing(false);
@@ -848,7 +848,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   ) : matchedStudent ? (
                     <>
                       <p className="text-[14px] font-black text-emerald-500 uppercase tracking-[0.2em] italic">Confirm Attendance: {matchedStudent.full_name}</p>
-                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Identification Verified • Auto-triggering...</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Identification Verified â€¢ Auto-triggering...</p>
                     </>
                   ) : (
                     <>
