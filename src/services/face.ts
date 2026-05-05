@@ -93,3 +93,29 @@ export async function updateProfileImage(userId: string, faceImage: string) {
   if (error) throw error;
   return { success: true };
 }
+
+export async function matchFace(embedding: number[], threshold: number = 0.4) {
+  try {
+    const supabase = await createClient();
+    
+    // Call the high-speed match_face RPC
+    const { data, error } = await supabase.rpc('match_face', {
+      query_embedding: embedding,
+      match_threshold: 1 - threshold, // Convert distance threshold to similarity
+      match_count: 1
+    });
+
+    if (error) {
+      console.error("RPC Match Error:", error);
+      return { error: error.message };
+    }
+
+    if (data && data.length > 0) {
+      return { data: data[0] };
+    }
+
+    return { data: null };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}

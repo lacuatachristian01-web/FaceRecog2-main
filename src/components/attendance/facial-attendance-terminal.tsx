@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription }
 import { toast } from "sonner";
 import { Camera, Loader2, CheckCircle2, Clock, UserCheck, AlertCircle, Scan, Sparkles, LogIn, ArrowRight, Search, Users } from "lucide-react";
 import { timeIn, timeOut, getTodayStatus, checkApproval, getRoomParticipantsWithFaces, getAllRegisteredFaces } from "@/services/attendance";
-import { getFaceEmbedding, updateProfileImage } from "@/services/face";
+import { getFaceEmbedding, updateProfileImage, matchFace } from "@/services/face";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -366,7 +366,6 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setCapturedImage(imageData);
 
       // 2. Perform the FINAL SCAN on the captured image
-      // This fulfills the request: "the captured face will be the one to be scanned"
       const capturedDetection = await faceapi
         .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 }))
         .withFaceLandmarks()
@@ -379,30 +378,34 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         return;
       }
 
-      // 3. Match the CAPTURED descriptor
-      let bestMatch: any = null;
-      let minDistance = 1.0;
-      const targetEmbeddings = isGlobal ? allRegisteredStudents : (currentUserEmbedding ? [currentUserEmbedding] : []);
+      // 3. High-Speed Database Search via pgvector
+      const result = await matchFace(Array.from(capturedDetection.descriptor), 0.6);
       
-      for (const p of targetEmbeddings) {
-        const emb = p.parsed_embedding;
-        if (!emb) continue;
-        const d = getDistance(capturedDetection.descriptor, emb);
-        if (d < minDistance) {
-          minDistance = d;
-          bestMatch = p;
-        }
+      if (result.error) {
+        toast.error(`Search Error: ${result.error}`);
+        setIsProcessing(false);
+        setCapturedImage(null);
+        return;
       }
 
-      if (bestMatch && minDistance < 0.6) {
+      const bestMatch = result.data;
+
+      if (bestMatch) {
         if (isGlobal) {
           await processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
         } else {
-          const type = !todayStatus ? 'in' : 'out';
-          await processAttendance(type);
+          // If in room mode, verify the match is actually the intended user
+          if (bestMatch.id === userId) {
+            const type = !todayStatus ? 'in' : 'out';
+            await processAttendance(type);
+          } else {
+            toast.error("Not Successfully Time In: Face does not match current user");
+            setIsProcessing(false);
+            setCapturedImage(null);
+          }
         }
       } else {
-        toast.error("Not Successfully Time In: Re-verification failed");
+        toast.error("Not Successfully Time In: Face Not Recognized");
         setIsProcessing(false);
         setCapturedImage(null);
       }
