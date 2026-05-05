@@ -774,9 +774,51 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         </CardContent>
 
         <CardFooter className="p-8 border-t border-border bg-muted/5">
-          <div className="w-full text-center space-y-2">
-            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">Biometric Auto-Authentication Active</p>
-            <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Position your face within the guide for hands-free check-in</p>
+          <div className="w-full text-center space-y-2 min-h-[40px] flex flex-col justify-center">
+            <AnimatePresence mode="wait">
+              {faceDetected ? (
+                <motion.div
+                  key="status"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-1"
+                >
+                  {autoTriggerProgress > 0 ? (
+                    <>
+                      <p className="text-[12px] font-black text-primary uppercase tracking-[0.2em] italic animate-pulse">Confirming Attendance... {Math.round(autoTriggerProgress)}%</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Hold still to finalize check-in</p>
+                    </>
+                  ) : matchedStudent?.full_name === "Unrecognized" ? (
+                    <>
+                      <p className="text-[12px] font-black text-destructive uppercase tracking-[0.2em] italic">Try Again: Face Unrecognized</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Position your face clearly within the guide</p>
+                    </>
+                  ) : matchedStudent ? (
+                    <>
+                      <p className="text-[14px] font-black text-emerald-500 uppercase tracking-[0.2em] italic">Confirm Attendance: {matchedStudent.full_name}</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Identification Verified • Auto-triggering...</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[12px] font-black text-blue-400 uppercase tracking-[0.2em] italic animate-pulse">Searching Database...</p>
+                      <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Analyzing biometric profile</p>
+                    </>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="default"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-1"
+                >
+                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">Biometric Auto-Authentication Active</p>
+                  <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">Position your face within the guide for hands-free check-in</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </CardFooter>
       </Card>
