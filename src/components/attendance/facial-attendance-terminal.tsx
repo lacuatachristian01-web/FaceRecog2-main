@@ -49,10 +49,12 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [matchedStudent, setMatchedStudent] = useState<any>(null);
   const [allParticipants, setAllParticipants] = useState<any[]>([]);
   const [allRegisteredStudents, setAllRegisteredStudents] = useState<any[]>([]);
+  const [currentUserEmbedding, setCurrentUserEmbedding] = useState<any>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [showFlash, setShowFlash] = useState(false);
   const detectionStartTime = useRef<number | null>(null);
-  const AUTO_TRIGGER_DELAY = 1200; // Calibrated for "Scanning" vibe visibility
+  const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
+  const AUTO_TRIGGER_DELAY = 800; // Reduced for faster "Vibe"
 
   useEffect(() => {
     if (roomId && userId) {
@@ -73,12 +75,37 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           getRoomParticipantsWithFaces(roomId),
           getAllRegisteredFaces()
         ]);
+        
+        // Pre-parse embeddings for speed
+        const parsedStudents = allStudents.map(s => ({
+          ...s,
+          parsed_embedding: typeof s.face_embedding === 'string' 
+            ? JSON.parse(s.face_embedding) 
+            : Array.isArray(s.face_embedding) 
+              ? s.face_embedding 
+              : null
+        })).filter(s => s.parsed_embedding);
+
         setAllParticipants(participants);
-        setAllRegisteredStudents(allStudents);
-        setIsApproved(true); // Admin is always allowed to use the terminal
+        setAllRegisteredStudents(parsedStudents);
+        setIsApproved(true);
       } else {
-        const approved = await checkApproval(roomId, userId);
+        const [approved, faceData] = await Promise.all([
+          checkApproval(roomId, userId),
+          getFaceEmbedding(userId)
+        ]);
         setIsApproved(approved);
+        if (faceData?.embedding) {
+          setCurrentUserEmbedding({
+            id: userId,
+            full_name: userName,
+            parsed_embedding: typeof faceData.embedding === 'string' 
+              ? JSON.parse(faceData.embedding) 
+              : Array.isArray(faceData.embedding) 
+                ? faceData.embedding 
+                : null
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to check approval", err);
@@ -125,9 +152,11 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         
         const video = videoRef.current;
         const canvas = canvasRef.current;
+        let bestMatch: any = null;
+        let minDistance = 1.0;
         
         const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160 }))
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
@@ -135,33 +164,27 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         faceapi.matchDimensions(canvas, displaySize);
 
         if (detection) {
+          if (!faceDetected) console.log("Face detected with score:", (detection as any).detection?.score);
           setFaceDetected(true);
           
           if (!isProcessing && status === 'idle' && isApproved !== false) {
             try {
               let targetEmbeddings = [];
+
               if (isGlobal) {
                 targetEmbeddings = allRegisteredStudents;
-              } else {
-                const faceData = await getFaceEmbedding(userId);
-                if (faceData?.embedding) {
-                  targetEmbeddings = [{ id: userId, full_name: userName, face_embedding: faceData.embedding }];
-                }
+              } else if (currentUserEmbedding) {
+                targetEmbeddings = [currentUserEmbedding];
               }
               
               if (targetEmbeddings.length > 0) {
-                let bestMatch = null;
-                let minDistance = 1.0;
-
                 for (const participant of targetEmbeddings) {
-                  const storedEmbedding = participant.face_embedding;
-                  if (!storedEmbedding) continue;
-
-                  const storedArray = Array.isArray(storedEmbedding) 
-                    ? storedEmbedding 
-                    : typeof storedEmbedding === 'string' 
-                      ? JSON.parse(storedEmbedding) 
-                      : null;
+                  const storedArray = participant.parsed_embedding || 
+                    (Array.isArray(participant.face_embedding) 
+                      ? participant.face_embedding 
+                      : typeof participant.face_embedding === 'string' 
+                        ? JSON.parse(participant.face_embedding) 
+                        : null);
 
                   if (!storedArray || detection.descriptor.length !== storedArray.length) continue;
 
@@ -172,7 +195,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                if (bestMatch && minDistance < 0.55) {
+                // Relaxed threshold slightly to 0.6 for better recognition in varied lighting
+                if (bestMatch && minDistance < 0.6) {
                   setMatchedStudent(bestMatch);
                   if (!detectionStartTime.current) detectionStartTime.current = Date.now();
                   
@@ -180,63 +204,44 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   setAutoTriggerProgress(Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100));
 
                     if (elapsed >= AUTO_TRIGGER_DELAY) {
+                      setIsProcessing(true); // Lock immediately
                       detectionStartTime.current = null;
                       setAutoTriggerProgress(0);
                       setShowFlash(true);
                       setTimeout(() => setShowFlash(false), 150);
                       
                       if (isGlobal) {
-                      const isEnrolled = allParticipants.some(p => p.id === bestMatch.id);
-                      if (!isEnrolled) {
-                        setWarningMessage(`${bestMatch.full_name} is not enrolled or approved in this room.`);
-                        setStatus('error');
-                        setActionMessage("Not Enrolled");
-                        return;
+                        processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
+                      } else {
+                        const type = !todayStatus ? 'in' : 'out';
+                        processAttendance(type);
                       }
-
-                      const result = await getTodayStatus(roomId, bestMatch.id);
-                      const sStatus = result.data;
-                      const type = !sStatus ? 'in' : 'out';
-                      
-                      if (type === 'out' && sStatus?.time_out) {
-                        toast.info(`${bestMatch.full_name} has already completed today's session.`);
-                        detectionStartTime.current = null;
-                        setAutoTriggerProgress(0);
-                        return;
-                      }
-
-                      let capturedFrame = null;
-                      if (!bestMatch.face_image) {
-                        const canvasEl = document.createElement("canvas");
-                        canvasEl.width = video.videoWidth; canvasEl.height = video.videoHeight;
-                        const ctxEl = canvasEl.getContext("2d");
-                        if (ctxEl) {
-                          ctxEl.scale(-1, 1);
-                          ctxEl.drawImage(video, -canvasEl.width, 0, canvasEl.width, canvasEl.height);
-                          capturedFrame = canvasEl.toDataURL("image/jpeg", 0.8);
-                        }
-                      }
-                      processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
-                    } else {
-                      const type = !todayStatus ? 'in' : 'out';
-                      if (type === 'out' && todayStatus?.time_out) {
-                        toast.info("Your attendance session is already complete for today.");
-                        detectionStartTime.current = null;
-                        setAutoTriggerProgress(0);
-                        return;
-                      }
-                      processAttendance(type);
                     }
-                  }
                 } else {
                   setMatchedStudent(bestMatch ? null : { full_name: "Unrecognized" });
                   detectionStartTime.current = null;
                   setAutoTriggerProgress(0);
+                  
+                  // Handle Unrecognized Notification
+                  if (!unrecognizedStartTime) {
+                    setUnrecognizedStartTime(Date.now());
+                  } else if (Date.now() - unrecognizedStartTime > 2500) {
+                    toast.error("Face not recognized. Please adjust your position.", {
+                      id: 'unrecognized-toast'
+                    });
+                    setUnrecognizedStartTime(Date.now()); // Reset to avoid spam
+                  }
                 }
               }
             } catch (err) {
               console.error("Match error", err);
             }
+          }
+
+          // Reset unrecognized timer if a match is found
+          // Reset unrecognized timer if a match is found
+          if (bestMatch && minDistance < 0.6) {
+            setUnrecognizedStartTime(null);
           }
 
           const resizedDetections = faceapi.resizeResults(detection, displaySize);
@@ -295,8 +300,13 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   }, [isStreaming, stream]);
 
   const processAttendance = async (type: 'in' | 'out') => {
-    if (isProcessing) return;
-    setIsProcessing(true);
+    // Check if already complete
+    if (type === 'out' && todayStatus?.time_out) {
+      toast.info("Your attendance session is already complete for today.");
+      setIsProcessing(false);
+      return;
+    }
+
     try {
       if (type === 'in') {
         const result = await timeIn(roomId, userId);
@@ -332,13 +342,48 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     }
   };
 
-  const processGlobalAttendance = async (sId: string, sName: string, type: 'in' | 'out', newPhoto?: string | null) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
+  const processGlobalAttendance = async (sId: string, sName: string, photoStatus?: string | null) => {
     try {
-      // Silently sync photo if provided
-      if (newPhoto) {
-        await updateProfileImage(sId, newPhoto);
+      // 1. Enrollment check
+      const isEnrolled = allParticipants.some(p => p.id === sId);
+      if (!isEnrolled) {
+        const msg = `${sName} is not enrolled in this room.`;
+        setWarningMessage(msg);
+        toast.error(msg, { id: `not-enrolled-${sId}` });
+        setStatus('error');
+        setActionMessage("Not Enrolled");
+        return;
+      }
+
+      // 2. Status check
+      const result = await getTodayStatus(roomId, sId);
+      const sStatus = result.data;
+      const type = !sStatus ? 'in' : 'out';
+      
+      if (type === 'out' && sStatus?.time_out) {
+        toast.info(`${sName} has already completed today's session.`, {
+          id: `session-done-${sId}`
+        });
+        return;
+      }
+
+      // 3. Optional Photo Capture (if missing)
+      if (photoStatus === 'PENDING' && videoRef.current) {
+        try {
+          const video = videoRef.current;
+          const canvasEl = document.createElement("canvas");
+          canvasEl.width = video.videoWidth; 
+          canvasEl.height = video.videoHeight;
+          const ctxEl = canvasEl.getContext("2d");
+          if (ctxEl) {
+            ctxEl.scale(-1, 1);
+            ctxEl.drawImage(video, -canvasEl.width, 0, canvasEl.width, canvasEl.height);
+            const newPhoto = canvasEl.toDataURL("image/jpeg", 0.8);
+            await updateProfileImage(sId, newPhoto);
+          }
+        } catch (photoErr) {
+          console.warn("Silent photo sync failed", photoErr);
+        }
       }
 
       if (type === 'in') {
@@ -568,8 +613,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                             </>
                           ) : (
                             <>
-                              <div className="w-2 h-2 rounded-full bg-blue-500/50" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Analyzing Face...</span>
+                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Searching Database...</span>
                             </>
                           )}
                         </motion.div>
