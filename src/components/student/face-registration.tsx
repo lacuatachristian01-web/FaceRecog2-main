@@ -173,23 +173,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           const isHighConfidence = detection.detection.score > 0.91;
           
           if (isCenteredX && isCenteredY) {
-            /* Relaxed Posture: Allow capture even if not perfectly leveled or looking straight */
-            /* 
-            if (!isLeveled) {
-              setIsCorrectPosture(false);
-              setGuideMessage("LEVEL YOUR FACE");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 5)); 
-              return;
-            }
-            if (!isLookingStraight) {
-              setIsCorrectPosture(false);
-              setGuideMessage("LOOK DIRECTLY AT CAMERA");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 5));
-              return;
-            }
-            */
-
-            // Priority 2: Specific Accessory Red Warnings
+            // Priority: Only Specific Accessory Warnings as requested
             if (isMaskSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR MASK");
@@ -220,7 +204,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
             
             setAutoCaptureProgress(prev => {
-              const next = prev + 25; // 4 frames to capture (approx 320ms) - Snappier
+              const next = prev + 25; 
               if (next >= 100) {
                 setTimeout(() => {
                   clearInterval(interval);
@@ -232,11 +216,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             });
           } else {
             setIsCorrectPosture(false);
-            if (!isCorrectSize) {
-              setGuideMessage(faceScale < 0.35 ? "MOVE CLOSER TO CAMERA" : "MOVE FURTHER BACK");
-            } else {
-              setGuideMessage("CENTER YOUR FACE IN THE FRAME");
-            }
+            setGuideMessage(faceScale < 0.35 ? "MOVE CLOSER" : "ADJUST POSITION");
             setAutoCaptureProgress(prev => Math.max(0, prev - 10));
           }
         } else {
@@ -325,39 +305,30 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
-      // 1. Ensure canvas is clean
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, targetSize, targetSize);
-      
-      // 2. Draw the video frame
-      // We use a simple draw first to ensure the buffer is active
+      // Simplified capture to avoid black frames
       try {
-        const padding = 0.3; // Slightly tighter padding for better face focus
-        const size = Math.max(1, Math.min(width * (1 + padding * 2), height * (1 + padding * 2)));
+        const padding = 0.3; 
+        const size = Math.min(width * (1 + padding * 2), height * (1 + padding * 2), video.videoWidth, video.videoHeight);
         const cropX = Math.max(0, x - width * padding);
         const cropY = Math.max(0, y - height * padding);
 
+        // Draw centered crop - NO transforms to ensure stability
         ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
         
-        // 3. Generate high-quality JPEG
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+        const imageData = canvas.toDataURL("image/jpeg", 0.95);
         
-        // 4. Force state update with a fresh timestamp if needed to bypass cache
         setCapturedImage(imageData);
         setDescriptor(Array.from(detection.descriptor));
         
-        // 5. Transition to preview
+        // Transition to preview - KEEP VIDEO RUNNING TO AVOID BLINK
         setStep("captured");
         setIsRegistering(false);
-        stopVideo();
       } catch (drawError) {
         console.error("Canvas Draw Error:", drawError);
-        // Fallback: just take the whole frame if crop fails
         ctx.drawImage(video, 0, 0, targetSize, targetSize);
-        setCapturedImage(canvas.toDataURL("image/jpeg", 0.8));
+        setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
         setStep("captured");
         setIsRegistering(false);
-        stopVideo();
       }
     }
   };
@@ -982,11 +953,11 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   )}
                   
                   <Button 
-                    variant="ghost" 
+                    variant="outline" 
                     onClick={handleRetake}
-                    className="text-zinc-500 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                    className="w-full h-14 rounded-2xl border-white/10 text-zinc-300 hover:text-white hover:bg-white/5 flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-[0.2em] mt-2 transition-all active:scale-[0.98]"
                   >
-                    <Camera className="w-3.5 h-3.5" />
+                    <Camera className="w-4 h-4" />
                     {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Retake Photo"}
                   </Button>
                 </div>
