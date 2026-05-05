@@ -124,8 +124,26 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
 
         if (detection) {
-          // One-way ticket to capture
-          handleAutoCapture(detection);
+          setFaceDetected(true);
+          setIsCorrectPosture(true);
+          
+          setAutoCaptureProgress(prev => {
+            const next = prev + 1.8; // Approx 3 seconds at 50ms interval (60 frames)
+            if (next >= 100) {
+              setTimeout(() => {
+                clearInterval(interval);
+                handleAutoCapture(detection);
+              }, 0);
+              return 100;
+            }
+            return next;
+          });
+          setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
+        } else {
+          setFaceDetected(false);
+          setIsCorrectPosture(false);
+          setGuideMessage("Scanning...");
+          setAutoCaptureProgress(prev => Math.max(0, prev - 10)); // Graceful decay
         }
       }, 50); // Faster polling
     }
@@ -183,7 +201,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // Direct draw for speed
+      // Mirror the draw to match the live video (natural feel)
+      ctx.translate(300, 0);
+      ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, 300, 300);
       
       const imageData = canvas.toDataURL("image/jpeg", 0.9);
