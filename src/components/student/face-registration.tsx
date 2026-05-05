@@ -168,7 +168,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           const isMaskSuspected = mouthHeight < 1 || (detection.detection.score < 0.88 && mouthHeight < 3);
           const eyeToTopDist = Math.abs(leftEyebrow[0].y - detection.detection.box.y);
           const isCapSuspected = eyeToTopDist < (detection.detection.box.height * 0.10);
-          const isGlassesSuspected = detection.detection.score > 0.82 && detection.detection.score <= 0.90 && !isMaskSuspected && !isCapSuspected;
+          const isGlassesSuspected = detection.detection.score > 0.85 && detection.detection.score <= 0.87 && !isMaskSuspected && !isCapSuspected; // Narrowed to reduce false positives
 
           const isHighConfidence = detection.detection.score > 0.91;
           
@@ -690,9 +690,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                     </motion.div>
                   )}
                   
-                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center max-w-[200px] leading-relaxed">
                     {registrationType === 'biometric' 
-                      ? "Look directly at the camera and avoid blinking for a second."
+                      ? "STAY STILL FOR A MOMENT"
                       : "Tap the shutter to capture"}
                   </p>
                 </div>
