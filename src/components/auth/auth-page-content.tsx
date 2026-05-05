@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { signInWithID, signUpWithID } from '@/services/auth';
+import { getUserProfile } from '@/services/dashboard';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { 
@@ -61,8 +62,17 @@ export function AuthPageContent({ session }: { session?: any }) {
           return;
         }
         toast.success('Login successful!');
-        router.push('/dashboard');
-        router.refresh();
+        
+        // Fetch profile to check if face registration is needed
+        const sessionData = await getUserProfile();
+        if (sessionData?.profile?.role === 'student' && !sessionData.profile?.face_registered) {
+          setStep('face');
+          toast.info('Please complete facial registration.');
+          router.refresh();
+        } else {
+          router.push('/dashboard');
+          router.refresh();
+        }
       } else {
         const result = await signUpWithID(name, id, userRole, courseYear);
         if (result.error) {

@@ -12,6 +12,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  // Enforcement: Students MUST have a registered face to access the dashboard
+  if (session.profile?.role === 'student' && !session.profile?.face_registered) {
+    redirect("/login");
+  }
+
   const { user, profile } = session;
   const profiles = await getVibeCheckData() || [];
   const repos = creatorRepos;
