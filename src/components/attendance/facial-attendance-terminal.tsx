@@ -220,31 +220,50 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                // Trigger capture for ANY face detected (unrecognized or not)
-                // This fulfills: "even it is not scanned it will capture the photo"
-                if (!detectionStartTime.current) detectionStartTime.current = Date.now();
+                // Check for "Right Position" (Centering)
+                const video = videoRef.current;
+                const box = (detection as any).detection.box;
+                const faceCenter = {
+                  x: box.x + box.width / 2,
+                  y: box.y + box.height / 2
+                };
+                const videoCenter = {
+                  x: video.videoWidth / 2,
+                  y: video.videoHeight / 2
+                };
                 
-                const elapsed = Date.now() - detectionStartTime.current;
-                const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
-                setAutoTriggerProgress(progress);
+                // Allow a 25% margin of error for "Right Position"
+                const toleranceX = video.videoWidth * 0.15;
+                const toleranceY = video.videoHeight * 0.15;
+                const isCentered = 
+                  Math.abs(faceCenter.x - videoCenter.x) < toleranceX &&
+                  Math.abs(faceCenter.y - videoCenter.y) < toleranceY;
 
-                if (elapsed >= AUTO_TRIGGER_DELAY) {
-                  setIsProcessing(true);
+                if (isCentered) {
+                  // Trigger capture for ANY face detected (unrecognized or not)
+                  if (!detectionStartTime.current) detectionStartTime.current = Date.now();
+                  
+                  const elapsed = Date.now() - detectionStartTime.current;
+                  const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
+                  setAutoTriggerProgress(progress);
+
+                  if (elapsed >= AUTO_TRIGGER_DELAY) {
+                    setIsProcessing(true);
+                    detectionStartTime.current = null;
+                    setAutoTriggerProgress(0);
+                    setShowFlash(true);
+                    setTimeout(() => setShowFlash(false), 150);
+                    
+                    // Trigger capture and perform the scanning on the photo
+                    processCapturedAttendance(video);
+                  }
+                  
+                  setMatchedStudent(bestMatch && minDistance < 0.6 ? bestMatch : { full_name: "Hold Still..." });
+                } else {
+                  // Not in right position
                   detectionStartTime.current = null;
                   setAutoTriggerProgress(0);
-                  setShowFlash(true);
-                  setTimeout(() => setShowFlash(false), 150);
-                  
-                  // Trigger capture and perform the scanning on the photo
-                  processCapturedAttendance(video);
-                }
-                
-                // Show best guess in real-time UI but don't require it for capture
-                if (bestMatch && minDistance < 0.6) {
-                  setMatchedStudent(bestMatch);
-                  setUnrecognizedStartTime(null);
-                } else {
-                  setMatchedStudent({ full_name: "Scanning..." });
+                  setMatchedStudent({ full_name: "Center Your Face" });
                 }
               }
             } catch (err) {
