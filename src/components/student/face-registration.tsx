@@ -200,24 +200,8 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       setCapturedImage(imageData);
       setDescriptor(Array.from(fullDetection.descriptor));
       
-      // 3. INSTANT DATABASE REGISTRATION
-      try {
-        setGuideMessage("Syncing Biometrics...");
-        const result = await registerFace(Array.from(fullDetection.descriptor), imageData);
-        
-        if (result.error) throw new Error(result.error);
-
-        setStep("success");
-        toast.success("Registration complete!");
-        if (onSuccess) {
-          setTimeout(() => onSuccess(), 1500);
-        }
-      } catch (regErr: any) {
-        console.error("Auto-reg failed:", regErr);
-        setRegistrationError(regErr.message || "Registration failed");
-        setHasFailedRegistration(true);
-        setStep("captured"); // Fallback to preview only on error
-      }
+      // 3. MANUAL CONFIRMATION: Show preview, don't auto-register
+      setStep("captured");
     } catch (err) {
       console.error("Instant capture failed:", err);
       setStep("scanning");
