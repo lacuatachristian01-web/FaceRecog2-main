@@ -173,11 +173,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           const isHighConfidence = detection.detection.score > 0.91;
           
           if (isCenteredX && isCenteredY) {
-            // Priority 1: Leveling & Rotation
+            /* Relaxed Posture: Allow capture even if not perfectly leveled or looking straight */
+            /* 
             if (!isLeveled) {
               setIsCorrectPosture(false);
               setGuideMessage("LEVEL YOUR FACE");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 5)); // Less punishing decay
+              setAutoCaptureProgress(prev => Math.max(0, prev - 5)); 
               return;
             }
             if (!isLookingStraight) {
@@ -186,6 +187,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               setAutoCaptureProgress(prev => Math.max(0, prev - 5));
               return;
             }
+            */
 
             // Priority 2: Specific Accessory Red Warnings
             if (isMaskSuspected) {
