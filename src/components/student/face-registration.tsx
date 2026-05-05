@@ -245,6 +245,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleRetake = () => {
+    setIsRegistering(false);
     setCapturedImage(null);
     setDescriptor(null);
     setHasFailedRegistration(false);
