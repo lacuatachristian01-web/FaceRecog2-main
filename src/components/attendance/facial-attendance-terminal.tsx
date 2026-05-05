@@ -57,7 +57,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [showFlash, setShowFlash] = useState(false);
   const detectionStartTime = useRef<number | null>(null);
   const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
-  const AUTO_TRIGGER_DELAY = 800; // Reduced for faster "Vibe"
+  const AUTO_TRIGGER_DELAY = 2000; // Increased to 2 seconds as requested
 
   useEffect(() => {
     if (roomId && userId) {
