@@ -5,6 +5,12 @@ import { Database } from '@/types/supabase';
 
 export type AttendanceRecord = Database['public']['Tables']['attendance']['Row'];
 
+const parseToMinutes = (timeStr?: string | null) => {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+
 /**
  * Attendance Service
  * Handles time-in, time-out, and dashboard data.
