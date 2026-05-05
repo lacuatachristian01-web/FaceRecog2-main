@@ -58,6 +58,10 @@ export interface Database {
           pm_time_out_end: string | null
           am_fine_amount: number | null
           pm_fine_amount: number | null
+          event_name: string | null
+          event_type: string | null
+          event_date: string | null
+          is_active: boolean
         }
         Insert: {
           id?: string
@@ -75,6 +79,10 @@ export interface Database {
           pm_time_out_end?: string | null
           am_fine_amount?: number | null
           pm_fine_amount?: number | null
+          event_name?: string | null
+          event_type?: string | null
+          event_date?: string | null
+          is_active?: boolean
         }
         Update: {
           id?: string
@@ -92,6 +100,10 @@ export interface Database {
           pm_time_out_end?: string | null
           am_fine_amount?: number | null
           pm_fine_amount?: number | null
+          event_name?: string | null
+          event_type?: string | null
+          event_date?: string | null
+          is_active?: boolean
         }
       }
       attendance: {
