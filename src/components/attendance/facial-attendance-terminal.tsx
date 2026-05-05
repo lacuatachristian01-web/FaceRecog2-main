@@ -599,17 +599,17 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                           {autoTriggerProgress > 0 ? (
                             <>
                               <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Confirming Identity... {Math.round(autoTriggerProgress)}%</span>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Confirming Attendance... {Math.round(autoTriggerProgress)}%</span>
                             </>
                           ) : matchedStudent?.full_name === "Unrecognized" ? (
                             <>
-                              <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Face Unrecognized</span>
+                              <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-destructive italic">Face Unrecognized: Try Again</span>
                             </>
                           ) : matchedStudent ? (
                              <>
                               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 italic">Hold Still: {matchedStudent.full_name}</span>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 italic">Confirm Attendance: {matchedStudent.full_name}</span>
                             </>
                           ) : (
                             <>
