@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useEffect } from "react";
 import * as faceapi from "face-api.js";
@@ -45,6 +45,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [todayStatus, setTodayStatus] = useState<any>(null);
   const [currentSession, setCurrentSession] = useState<'AM' | 'PM'>('AM');
   const [manualSession, setManualSession] = useState<boolean>(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [autoTriggerProgress, setAutoTriggerProgress] = useState(0);
@@ -360,6 +361,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
 
   const processGlobalAttendance = async (sId: string, sName: string, photoStatus?: string | null) => {
     try {
+      // 0. Capture Frame Instantly for UX
+      if (videoRef.current) {
+        const video = videoRef.current;
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, -video.videoWidth, 0, video.videoWidth, video.videoHeight);
+          setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
+        }
+      }
       // 1. Enrollment check
       const isEnrolled = allParticipants.some(p => p.id === sId);
       if (!isEnrolled) {
@@ -426,7 +440,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setTimeout(() => {
         setStatus('idle');
         setMatchedStudent(null);
-      }, 3000);
+        setCapturedImage(null);
+      }, 4000);
     } catch (err: any) {
       toast.error(err.message || "Not Successfully Time In");
       setStatus('error');
@@ -561,8 +576,32 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   ref={canvasRef}
                   className="absolute inset-0 w-full h-full pointer-events-none scale-x-[-1]"
                 />
-                
-                {/* Visual Guides */}
+                {/* Captured Image Overlay (Snap & Search) */}
+                    {capturedImage && isProcessing && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 1.1 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="absolute inset-0 z-50 overflow-hidden rounded-[48px] border-4 border-primary/50 shadow-[0_0_80px_rgba(59,130,246,0.3)]"
+                      >
+                        <img src={capturedImage} className="w-full h-full object-cover" alt="Captured biometric" />
+                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center space-y-4">
+                          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                          <div className="bg-black/60 backdrop-blur-md px-6 py-3 rounded-2xl border border-primary/30 text-center">
+                            <p className="text-primary font-black uppercase tracking-[0.2em] italic text-xs animate-pulse">Biometric Analysis</p>
+                            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mt-1">Verifying Identity...</p>
+                          </div>
+                        </div>
+                        {/* Scanning Line Animation */}
+                        <motion.div 
+                          initial={{ top: '0%' }}
+                          animate={{ top: '100%' }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                          className="absolute left-0 right-0 h-[2px] bg-primary/80 shadow-[0_0_15px_rgba(59,130,246,0.8)] z-50"
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* Scanner Guide */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className={cn(
                     "w-[320px] h-[320px] border border-white/10 rounded-[48px] transition-all duration-500 relative flex items-center justify-center",
