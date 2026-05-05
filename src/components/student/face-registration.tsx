@@ -325,21 +325,40 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
-      // Reset transform before drawing
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      // 1. Ensure canvas is clean
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, targetSize, targetSize);
       
-      // Draw centered crop
-      ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
-      
-      const imageData = canvas.toDataURL("image/jpeg", 0.9);
-      
-      setCapturedImage(imageData);
-      setDescriptor(Array.from(detection.descriptor));
-      
-      // Manual confirmation: Just move to captured step
-      setStep("captured");
-      setIsRegistering(false);
-      stopVideo(); // Stop now that we have the image
+      // 2. Draw the video frame
+      // We use a simple draw first to ensure the buffer is active
+      try {
+        const padding = 0.3; // Slightly tighter padding for better face focus
+        const size = Math.max(1, Math.min(width * (1 + padding * 2), height * (1 + padding * 2)));
+        const cropX = Math.max(0, x - width * padding);
+        const cropY = Math.max(0, y - height * padding);
+
+        ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
+        
+        // 3. Generate high-quality JPEG
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+        
+        // 4. Force state update with a fresh timestamp if needed to bypass cache
+        setCapturedImage(imageData);
+        setDescriptor(Array.from(detection.descriptor));
+        
+        // 5. Transition to preview
+        setStep("captured");
+        setIsRegistering(false);
+        stopVideo();
+      } catch (drawError) {
+        console.error("Canvas Draw Error:", drawError);
+        // Fallback: just take the whole frame if crop fails
+        ctx.drawImage(video, 0, 0, targetSize, targetSize);
+        setCapturedImage(canvas.toDataURL("image/jpeg", 0.8));
+        setStep("captured");
+        setIsRegistering(false);
+        stopVideo();
+      }
     }
   };
 
