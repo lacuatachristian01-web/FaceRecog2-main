@@ -99,16 +99,22 @@ export async function timeIn(roomId: string, studentId: string) {
     const fineAmount = activeSession === 'AM' ? (room.am_fine_amount || 50) : (room.pm_fine_amount || 50);
     const fine = events.includes('Late') ? fineAmount : 0;
 
+    const insertData: any = {
+      room_id: roomId,
+      student_id: studentId,
+      time_in: new Date().toISOString(),
+      events: events.length > 0 ? events : null,
+      fines: fine
+    };
+
+    // Only add session if it was successfully fetched/detected
+    if (activeSession) {
+      insertData.session = activeSession;
+    }
+
     const { data, error } = await supabase
       .from('attendance')
-      .insert({
-        room_id: roomId,
-        student_id: studentId,
-        time_in: new Date().toISOString(),
-        session: activeSession, // Save the session type
-        events: events.length > 0 ? events : null,
-        fines: fine
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -216,16 +222,36 @@ export async function getTodayStatus(roomId: string, studentId: string) {
       const currentSession: 'AM' | 'PM' = currentMinutes < pmInStart ? 'AM' : 'PM';
 
       // Find the record for the CURRENT session
-      const { data: currentRecord, error: fetchError } = await supabase
+      let query = supabase
         .from('attendance')
         .select('*')
         .eq('room_id', roomId)
         .eq('student_id', studentId)
+        .gte('time_in', `${today}T00:00:00`);
+
+      // Try to filter by session if column exists (graceful check)
+      // Note: Supabase will return error if session column is missing
+      const { data: currentRecord, error: fetchError } = await query
         .eq('session', currentSession)
-        .gte('time_in', `${today}T00:00:00`)
         .order('time_in', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      if (fetchError && fetchError.message.includes('column attendance.session does not exist')) {
+        // Fallback: Just get the last record of the day if session column is missing
+        const { data: fallbackRecord, error: fallbackError } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('room_id', roomId)
+          .eq('student_id', studentId)
+          .gte('time_in', `${today}T00:00:00`)
+          .order('time_in', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        if (fallbackError) return { error: fallbackError.message };
+        return { data: fallbackRecord, sessionType: currentSession };
+      }
 
       if (fetchError) {
         return { error: fetchError.message };
