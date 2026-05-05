@@ -10,7 +10,7 @@ export type AttendanceRecord = Database['public']['Tables']['attendance']['Row']
  * Handles time-in, time-out, and dashboard data.
  */
 
-export async function timeIn(roomId: string, studentId: string) {
+export async function timeIn(roomId: string, studentId: string, sessionOverride?: 'AM' | 'PM') {
   try {
     const supabase = await createClient();
     const today = new Date().toISOString().split('T')[0];
@@ -28,32 +28,31 @@ export async function timeIn(roomId: string, studentId: string) {
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     // 2. Identify the active session window
-    let activeSession: 'AM' | 'PM' | null = null;
+    let activeSession: 'AM' | 'PM' | null = sessionOverride || null;
     let targetInStart = "";
     let targetInEnd = "";
-
-    const parseToMinutes = (timeStr?: string | null) => {
-      if (!timeStr) return null;
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
-    };
 
     const amInStart = parseToMinutes(room.am_time_in_start);
     const amOutEnd = parseToMinutes(room.am_time_out_end);
     const pmInStart = parseToMinutes(room.pm_time_in_start);
     const pmOutEnd = parseToMinutes(room.pm_time_out_end);
 
-    // Check if we are in AM window (from AM In Start to AM Out End)
-    if (amInStart !== null && amOutEnd !== null && currentMinutes >= amInStart && currentMinutes <= amOutEnd) {
-      activeSession = 'AM';
-      targetInStart = room.am_time_in_start!;
-      targetInEnd = room.am_time_in_end!;
-    } 
-    // Check if we are in PM window (from PM In Start to PM Out End)
-    else if (pmInStart !== null && pmOutEnd !== null && currentMinutes >= pmInStart && currentMinutes <= pmOutEnd) {
-      activeSession = 'PM';
-      targetInStart = room.pm_time_in_start!;
-      targetInEnd = room.pm_time_in_end!;
+    if (activeSession) {
+      targetInStart = activeSession === 'AM' ? (room.am_time_in_start || "") : (room.pm_time_in_start || "");
+      targetInEnd = activeSession === 'AM' ? (room.am_time_in_end || "") : (room.pm_time_in_end || "");
+    } else {
+      // Check if we are in AM window (from AM In Start to AM Out End)
+      if (amInStart !== null && amOutEnd !== null && currentMinutes >= amInStart && currentMinutes <= amOutEnd) {
+        activeSession = 'AM';
+        targetInStart = room.am_time_in_start!;
+        targetInEnd = room.am_time_in_end!;
+      } 
+      // Check if we are in PM window (from PM In Start to PM Out End)
+      else if (pmInStart !== null && pmOutEnd !== null && currentMinutes >= pmInStart && currentMinutes <= pmOutEnd) {
+        activeSession = 'PM';
+        targetInStart = room.pm_time_in_start!;
+        targetInEnd = room.pm_time_in_end!;
+      }
     }
 
     if (!activeSession) {
@@ -201,7 +200,7 @@ export async function getStudentAttendance(studentId: string) {
   if (error) throw error;
   return data;
 }
-export async function getTodayStatus(roomId: string, studentId: string) {
+export async function getTodayStatus(roomId: string, studentId: string, sessionOverride?: 'AM' | 'PM') {
   let attempts = 0;
   const maxAttempts = 3;
 
@@ -219,7 +218,7 @@ export async function getTodayStatus(roomId: string, studentId: string) {
       const amInStart = room?.am_time_in_start ? (room.am_time_in_start.split(':').map(Number)[0] * 60 + room.am_time_in_start.split(':').map(Number)[1]) : null;
       const pmInStart = room?.pm_time_in_start ? (room.pm_time_in_start.split(':').map(Number)[0] * 60 + room.pm_time_in_start.split(':').map(Number)[1]) : 720;
       
-      const currentSession: 'AM' | 'PM' = currentMinutes < pmInStart ? 'AM' : 'PM';
+      const currentSession: 'AM' | 'PM' = sessionOverride || (currentMinutes < pmInStart ? 'AM' : 'PM');
 
       // Find the record for the CURRENT session
       let query = supabase
