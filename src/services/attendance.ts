@@ -105,6 +105,7 @@ export async function timeIn(roomId: string, studentId: string) {
         room_id: roomId,
         student_id: studentId,
         time_in: new Date().toISOString(),
+        session: activeSession, // Save the session type
         events: events.length > 0 ? events : null,
         fines: fine
       })
@@ -205,38 +206,29 @@ export async function getTodayStatus(roomId: string, studentId: string) {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       
-      const { data: lastRecord, error } = await supabase
+      // Determine current session
+      const amInStart = room?.am_time_in_start ? (room.am_time_in_start.split(':').map(Number)[0] * 60 + room.am_time_in_start.split(':').map(Number)[1]) : null;
+      const pmInStart = room?.pm_time_in_start ? (room.pm_time_in_start.split(':').map(Number)[0] * 60 + room.pm_time_in_start.split(':').map(Number)[1]) : 720;
+      
+      const currentSession: 'AM' | 'PM' = currentMinutes < pmInStart ? 'AM' : 'PM';
+
+      // Find the record for the CURRENT session
+      const { data: currentRecord, error: fetchError } = await supabase
         .from('attendance')
         .select('*')
         .eq('room_id', roomId)
         .eq('student_id', studentId)
+        .eq('session', currentSession)
         .gte('time_in', `${today}T00:00:00`)
         .order('time_in', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (error) {
-        console.error(`Status fetch error (Attempt ${attempts + 1}):`, error.message);
-        return { error: error.message };
+      if (fetchError) {
+        return { error: fetchError.message };
       }
 
-      if (!lastRecord) return { data: null };
-
-      if (!lastRecord.time_out) return { data: lastRecord };
-
-      const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
-      if (room) {
-        const pmInStart = room.pm_time_in_start ? (room.pm_time_in_start.split(':').map(Number)[0] * 60 + room.pm_time_in_start.split(':').map(Number)[1]) : null;
-        const lastInTime = new Date(lastRecord.time_in);
-        const wasAm = lastInTime.getHours() < 12;
-        const isNowPm = currentMinutes >= (pmInStart || 720);
-
-        if (wasAm && isNowPm && room.pm_time_in_start) {
-          return { data: null }; 
-        }
-      }
-
-      return { data: lastRecord };
+      return { data: currentRecord, sessionType: currentSession };
     } catch (err: any) {
       attempts++;
       console.error(`Fetch attempt ${attempts} failed:`, err.message);

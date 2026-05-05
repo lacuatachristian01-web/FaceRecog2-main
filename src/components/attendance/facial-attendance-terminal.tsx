@@ -43,6 +43,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [actionMessage, setActionMessage] = useState("");
   const [todayStatus, setTodayStatus] = useState<any>(null);
+  const [currentSession, setCurrentSession] = useState<'AM' | 'PM'>('AM');
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [autoTriggerProgress, setAutoTriggerProgress] = useState(0);
@@ -129,6 +130,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         return;
       }
       setTodayStatus(result.data);
+      if (result.sessionType) setCurrentSession(result.sessionType);
     } catch (err) {
       console.error("Failed to fetch status", err);
     }
@@ -482,10 +484,13 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
               <CardDescription className="font-medium">Secure facial authentication system</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
+              <Badge variant="secondary" className="gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 border-blue-500/20">
+                {currentSession === 'AM' ? "Morning Session" : "Afternoon Session"}
+              </Badge>
               {isGlobal ? (
                 <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1.5 px-3 py-1 text-[10px] font-black uppercase tracking-widest">
                   <Users className="w-3 h-3" />
-                  {allParticipants.length} Students Active
+                  {allParticipants.length} Students Enrolled
                 </Badge>
               ) : todayStatus ? (
                 <Badge className={cn(
@@ -493,11 +498,11 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   todayStatus.time_out ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                 )}>
                   <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", todayStatus.time_out ? "bg-muted-foreground" : "bg-emerald-500")} />
-                  {todayStatus.time_out ? "Session Completed" : "Currently Active"}
+                  {todayStatus.time_out ? `${currentSession} Session Done` : `${currentSession} Currently Active`}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                  Waiting for Check-in
+                  Waiting for {currentSession} In
                 </Badge>
               )}
             </div>
