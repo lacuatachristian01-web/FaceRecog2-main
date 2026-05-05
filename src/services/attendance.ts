@@ -206,6 +206,9 @@ export async function getTodayStatus(roomId: string, studentId: string) {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       
+      // Fetch room details first
+      const { data: room } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+
       // Determine current session
       const amInStart = room?.am_time_in_start ? (room.am_time_in_start.split(':').map(Number)[0] * 60 + room.am_time_in_start.split(':').map(Number)[1]) : null;
       const pmInStart = room?.pm_time_in_start ? (room.pm_time_in_start.split(':').map(Number)[0] * 60 + room.pm_time_in_start.split(':').map(Number)[1]) : 720;
