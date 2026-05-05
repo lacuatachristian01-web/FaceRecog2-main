@@ -157,18 +157,22 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
 
   // Face Detection Loop for Overlay
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isStreaming && isModelLoaded && videoRef.current && canvasRef.current) {
-      interval = setInterval(async () => {
-        if (!videoRef.current || !canvasRef.current || videoRef.current.readyState !== 4) return;
-        
+    let detectionTimeout: NodeJS.Timeout;
+
+    const runDetection = async () => {
+      if (!videoRef.current || !canvasRef.current || !isStreaming || !isModelLoaded || isProcessing) {
+        detectionTimeout = setTimeout(runDetection, 100);
+        return;
+      }
+
+      if (videoRef.current.readyState === 4) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         let bestMatch: any = null;
         let minDistance = 1.0;
         
         const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
@@ -176,28 +180,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         faceapi.matchDimensions(canvas, displaySize);
 
         if (detection) {
-          if (!faceDetected) console.log("Face detected with score:", (detection as any).detection?.score);
           setFaceDetected(true);
           
           if (!isProcessing && status === 'idle' && isApproved !== false) {
             try {
-              let targetEmbeddings = [];
-
-              if (isGlobal) {
-                targetEmbeddings = allRegisteredStudents;
-              } else if (currentUserEmbedding) {
-                targetEmbeddings = [currentUserEmbedding];
-              }
+              let targetEmbeddings = isGlobal ? allRegisteredStudents : (currentUserEmbedding ? [currentUserEmbedding] : []);
               
               if (targetEmbeddings.length > 0) {
-                // Priority Search: Try to match participants first for extreme speed
                 let priorityMatch = null;
                 let priorityDistance = 1.0;
                 
-                // 1. Check Room Participants first
                 if (isGlobal && allParticipants.length > 0) {
                   for (const p of allParticipants) {
-                    const emb = p.parsed_embedding || (typeof p.face_embedding === 'string' ? JSON.parse(p.face_embedding) : p.face_embedding);
+                    const emb = p.parsed_embedding;
                     if (!emb || detection.descriptor.length !== emb.length) continue;
                     const d = getDistance(detection.descriptor, emb);
                     if (d < priorityDistance) {
@@ -207,15 +202,15 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                // 2. If no participant match, check global (or if not global mode)
                 if (priorityMatch && priorityDistance < 0.6) {
                   bestMatch = priorityMatch;
                   minDistance = priorityDistance;
                 } else {
-                  for (const participant of targetEmbeddings) {
+                  const len = targetEmbeddings.length;
+                  for (let i = 0; i < len; i++) {
+                    const participant = targetEmbeddings[i];
                     const storedArray = participant.parsed_embedding;
                     if (!storedArray || detection.descriptor.length !== storedArray.length) continue;
-
                     const distance = getDistance(detection.descriptor, storedArray);
                     if (distance < minDistance) {
                       minDistance = distance;
@@ -224,52 +219,44 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                // Relaxed threshold slightly to 0.6 for better recognition in varied lighting
                 if (bestMatch && minDistance < 0.6) {
                   setMatchedStudent(bestMatch);
+                  setUnrecognizedStartTime(null);
                   if (!detectionStartTime.current) detectionStartTime.current = Date.now();
                   
                   const elapsed = Date.now() - detectionStartTime.current;
-                  setAutoTriggerProgress(Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100));
+                  const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
+                  setAutoTriggerProgress(progress);
 
-                    if (elapsed >= AUTO_TRIGGER_DELAY) {
-                      setIsProcessing(true); // Lock immediately
-                      detectionStartTime.current = null;
-                      setAutoTriggerProgress(0);
-                      setShowFlash(true);
-                      setTimeout(() => setShowFlash(false), 150);
-                      
-                      if (isGlobal) {
-                        processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
-                      } else {
-                        const type = !todayStatus ? 'in' : 'out';
-                        processAttendance(type);
-                      }
+                  if (elapsed >= AUTO_TRIGGER_DELAY) {
+                    setIsProcessing(true);
+                    detectionStartTime.current = null;
+                    setAutoTriggerProgress(0);
+                    setShowFlash(true);
+                    setTimeout(() => setShowFlash(false), 150);
+                    
+                    if (isGlobal) {
+                      processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
+                    } else {
+                      const type = !todayStatus ? 'in' : 'out';
+                      processAttendance(type);
                     }
+                  }
                 } else {
-                  setMatchedStudent(bestMatch ? null : { full_name: "Unrecognized" });
+                  setMatchedStudent({ full_name: "Unrecognized" });
                   detectionStartTime.current = null;
                   setAutoTriggerProgress(0);
                   
-                  // Handle Unrecognized Notification
-                  if (!unrecognizedStartTime) {
+                  if (!unrecognizedStartTime) setUnrecognizedStartTime(Date.now());
+                  else if (Date.now() - unrecognizedStartTime > 3000) {
+                    toast.error("Face not recognized. Please try again.", { id: 'unrecognized-toast' });
                     setUnrecognizedStartTime(Date.now());
-                  } else if (Date.now() - unrecognizedStartTime > 3000) {
-                    toast.error("Face not recognized. Please try again.", {
-                      id: 'unrecognized-toast'
-                    });
-                    setUnrecognizedStartTime(Date.now()); // Reset to avoid spam
                   }
                 }
               }
             } catch (err) {
               console.error("Match error", err);
             }
-          }
-
-          // Reset unrecognized timer if a match is found
-          if (bestMatch && minDistance < 0.6) {
-            setUnrecognizedStartTime(null);
           }
 
           const resizedDetections = faceapi.resizeResults(detection, displaySize);
@@ -279,7 +266,6 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
             ctx.strokeStyle = "#3b82f6";
             ctx.lineWidth = 1;
             ctx.globalAlpha = 0.4;
-            
             const landmarks = resizedDetections.landmarks.positions;
             landmarks.forEach(point => {
               ctx.beginPath();
@@ -287,10 +273,6 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
               ctx.fillStyle = "#60a5fa";
               ctx.fill();
             });
-
-            ctx.beginPath();
-            ctx.moveTo(landmarks[0].x, landmarks[0].y);
-            for (let i = 1; i < 17; i++) ctx.lineTo(landmarks[i].x, landmarks[i].y);
             ctx.stroke();
           }
         } else {
@@ -300,9 +282,15 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           setAutoTriggerProgress(0);
           canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
         }
-      }, 100);
-    }
-    return () => clearInterval(interval);
+      }
+      detectionTimeout = setTimeout(runDetection, 60);
+    };
+
+    if (isStreaming && isModelLoaded) runDetection();
+
+    return () => {
+      if (detectionTimeout) clearTimeout(detectionTimeout);
+    };
   }, [isStreaming, isModelLoaded]);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
