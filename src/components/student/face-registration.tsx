@@ -265,21 +265,23 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleAutoCapture = async (detection: any) => {
-    if (!videoRef.current || isRegistering) return;
+    // 1. Immediate Lock-out
+    if (isRegistering) return;
     
     const video = videoRef.current;
-    
-    // 1. Safety check for video readiness
-    if (video.readyState < 2 || video.videoWidth <= 0) {
+    if (!video || video.readyState < 2 || video.videoWidth <= 0) {
       console.warn("[FaceRegistration] Video not ready for auto-capture");
-      setAutoCaptureProgress(0); // Reset to try again
+      setAutoCaptureProgress(0);
       return;
     }
 
     try {
       setIsRegistering(true);
-      setGuideMessage("Processing Biometrics...");
       
+      // 2. IMMEDIATE STEP CHANGE to provide visual feedback and stop the '100%' hang
+      setStep("captured");
+      setGuideMessage("Processing Scan...");
+
       const canvas = document.createElement("canvas");
       const targetSize = 256; 
       canvas.width = targetSize;
@@ -288,28 +290,31 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       
       if (!ctx) throw new Error("Could not get canvas context");
 
-      // 2. Calculate crop from detection box
+      // 3. Extract dimensions
       const { x, y, width, height } = detection.detection.box;
       const padding = 0.3; 
       const size = Math.min(width * (1 + padding * 2), height * (1 + padding * 2), video.videoWidth, video.videoHeight);
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
-      // 3. Draw directly (No complex transforms to avoid black frames)
+      // 4. Draw to canvas
       ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
       
+      // 5. Generate and set the image
       const imageData = canvas.toDataURL("image/jpeg", 0.95);
-      
       setCapturedImage(imageData);
       setDescriptor(Array.from(detection.descriptor));
       
-      // 4. Transition to preview
-      setStep("captured");
+      // Stop the camera now that we have the capture
+      stopVideo();
     } catch (err) {
-      console.error("Auto-capture failed:", err);
-      toast.error("Scan failed. Please try again.");
-      setAutoCaptureProgress(0);
+      console.error("Auto-capture handover failed:", err);
+      toast.error("Capture failed. Restarting scanner...");
+      
+      // Reset everything on failure
       setStep("scanning");
+      setAutoCaptureProgress(0);
+      setIsRegistering(false);
       startVideo();
     } finally {
       setIsRegistering(false);
