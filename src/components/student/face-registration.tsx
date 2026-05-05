@@ -189,13 +189,34 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const imageData = canvas.toDataURL("image/jpeg", 0.9);
       setCapturedImage(imageData);
       
-      // Get descriptors in the background so UI stays smooth
+      // 1. Get high-quality descriptors for database
       const fullDetection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceDescriptor();
+
+      if (!fullDetection) throw new Error("Could not extract biometric data");
+
+      // 2. Map visual frame for preview
+      setCapturedImage(imageData);
+      setDescriptor(Array.from(fullDetection.descriptor));
+      
+      // 3. INSTANT DATABASE REGISTRATION
+      try {
+        setGuideMessage("Syncing Biometrics...");
+        const result = await registerFace(Array.from(fullDetection.descriptor), imageData);
         
-      if (fullDetection) {
-        setDescriptor(Array.from(fullDetection.descriptor));
+        if (result.error) throw new Error(result.error);
+
+        setStep("success");
+        toast.success("Registration complete!");
+        if (onSuccess) {
+          setTimeout(() => onSuccess(), 1500);
+        }
+      } catch (regErr: any) {
+        console.error("Auto-reg failed:", regErr);
+        setRegistrationError(regErr.message || "Registration failed");
+        setHasFailedRegistration(true);
+        setStep("captured"); // Fallback to preview only on error
       }
     } catch (err) {
       console.error("Instant capture failed:", err);
