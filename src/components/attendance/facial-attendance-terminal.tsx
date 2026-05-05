@@ -220,36 +220,31 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                if (bestMatch && minDistance < 0.6) {
-                  // If we have a potential match in real-time, trigger the CAPTURE and scan THAT
-                  setUnrecognizedStartTime(null);
-                  setMatchedStudent(bestMatch);
-                  if (!detectionStartTime.current) detectionStartTime.current = Date.now();
-                  
-                  const elapsed = Date.now() - detectionStartTime.current;
-                  const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
-                  setAutoTriggerProgress(progress);
+                // Trigger capture for ANY face detected (unrecognized or not)
+                // This fulfills: "even it is not scanned it will capture the photo"
+                if (!detectionStartTime.current) detectionStartTime.current = Date.now();
+                
+                const elapsed = Date.now() - detectionStartTime.current;
+                const progress = Math.min((elapsed / AUTO_TRIGGER_DELAY) * 100, 100);
+                setAutoTriggerProgress(progress);
 
-                  if (elapsed >= AUTO_TRIGGER_DELAY) {
-                    setIsProcessing(true);
-                    detectionStartTime.current = null;
-                    setAutoTriggerProgress(0);
-                    setShowFlash(true);
-                    setTimeout(() => setShowFlash(false), 150);
-                    
-                    // Trigger capture and final scan
-                    processCapturedAttendance(video, detection);
-                  }
-                } else {
-                  setMatchedStudent({ full_name: "Unrecognized" });
+                if (elapsed >= AUTO_TRIGGER_DELAY) {
+                  setIsProcessing(true);
                   detectionStartTime.current = null;
                   setAutoTriggerProgress(0);
+                  setShowFlash(true);
+                  setTimeout(() => setShowFlash(false), 150);
                   
-                  if (!unrecognizedStartTime) setUnrecognizedStartTime(Date.now());
-                  else if (Date.now() - unrecognizedStartTime > 3000) {
-                    toast.error("Not Successfully Time In: Face Not Recognized", { id: 'unrecognized-toast' });
-                    setUnrecognizedStartTime(Date.now());
-                  }
+                  // Trigger capture and perform the scanning on the photo
+                  processCapturedAttendance(video);
+                }
+                
+                // Show best guess in real-time UI but don't require it for capture
+                if (bestMatch && minDistance < 0.6) {
+                  setMatchedStudent(bestMatch);
+                  setUnrecognizedStartTime(null);
+                } else {
+                  setMatchedStudent({ full_name: "Scanning..." });
                 }
               }
             } catch (err) {
@@ -356,7 +351,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     }
   };
 
-  const processCapturedAttendance = async (video: HTMLVideoElement, initialDetection: any) => {
+  const processCapturedAttendance = async (video: HTMLVideoElement) => {
     try {
       // 1. Capture the face frame
       const canvas = document.createElement("canvas");
