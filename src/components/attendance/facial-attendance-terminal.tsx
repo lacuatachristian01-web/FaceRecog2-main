@@ -76,7 +76,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           getAllRegisteredFaces()
         ]);
         
-        // Pre-parse embeddings for speed
+        // Pre-parse embeddings for extreme speed
         const parsedStudents = allStudents.map(s => ({
           ...s,
           parsed_embedding: typeof s.face_embedding === 'string' 
@@ -86,7 +86,16 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
               : null
         })).filter(s => s.parsed_embedding);
 
-        setAllParticipants(participants);
+        const parsedParticipants = participants.map(p => ({
+          ...p,
+          parsed_embedding: typeof p.face_embedding === 'string' 
+            ? JSON.parse(p.face_embedding) 
+            : Array.isArray(p.face_embedding) 
+              ? p.face_embedding 
+              : null
+        }));
+
+        setAllParticipants(parsedParticipants);
         setAllRegisteredStudents(parsedStudents);
         setIsApproved(true);
       } else {
@@ -178,20 +187,37 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
               }
               
               if (targetEmbeddings.length > 0) {
-                for (const participant of targetEmbeddings) {
-                  const storedArray = participant.parsed_embedding || 
-                    (Array.isArray(participant.face_embedding) 
-                      ? participant.face_embedding 
-                      : typeof participant.face_embedding === 'string' 
-                        ? JSON.parse(participant.face_embedding) 
-                        : null);
+                // Priority Search: Try to match participants first for extreme speed
+                let priorityMatch = null;
+                let priorityDistance = 1.0;
+                
+                // 1. Check Room Participants first
+                if (isGlobal && allParticipants.length > 0) {
+                  for (const p of allParticipants) {
+                    const emb = p.parsed_embedding || (typeof p.face_embedding === 'string' ? JSON.parse(p.face_embedding) : p.face_embedding);
+                    if (!emb || detection.descriptor.length !== emb.length) continue;
+                    const d = getDistance(detection.descriptor, emb);
+                    if (d < priorityDistance) {
+                      priorityDistance = d;
+                      priorityMatch = p;
+                    }
+                  }
+                }
 
-                  if (!storedArray || detection.descriptor.length !== storedArray.length) continue;
+                // 2. If no participant match, check global (or if not global mode)
+                if (priorityMatch && priorityDistance < 0.6) {
+                  bestMatch = priorityMatch;
+                  minDistance = priorityDistance;
+                } else {
+                  for (const participant of targetEmbeddings) {
+                    const storedArray = participant.parsed_embedding;
+                    if (!storedArray || detection.descriptor.length !== storedArray.length) continue;
 
-                  const distance = getDistance(detection.descriptor, storedArray);
-                  if (distance < minDistance) {
-                    minDistance = distance;
-                    bestMatch = participant;
+                    const distance = getDistance(detection.descriptor, storedArray);
+                    if (distance < minDistance) {
+                      minDistance = distance;
+                      bestMatch = participant;
+                    }
                   }
                 }
 
