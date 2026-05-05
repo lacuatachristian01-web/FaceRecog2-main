@@ -11,7 +11,7 @@ import { Plus, Users, Hash, Calendar, Clock, Trash2, UserMinus, ChevronRight, X,
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export function RoomList({ view }: { view?: string | null }) {
+export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string | null, initialEditingRoom?: Room | null, onEdit?: (room: Room) => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newRoomName, setNewRoomName] = useState("");
   const [newEventName, setNewEventName] = useState("");
@@ -48,6 +48,14 @@ export function RoomList({ view }: { view?: string | null }) {
   const [amFineAmount, setAmFineAmount] = useState(50);
   const [pmFineAmount, setPmFineAmount] = useState<number>(50);
   const [isToggling, setIsToggling] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  useEffect(() => {
+    if (initialEditingRoom && isInitialLoad) {
+      handleEditRoom(initialEditingRoom);
+      setIsInitialLoad(false);
+    }
+  }, [initialEditingRoom]);
 
   useEffect(() => {
     fetchRooms();
@@ -94,7 +102,7 @@ export function RoomList({ view }: { view?: string | null }) {
     setCreating(true);
     try {
       if (editingRoom) {
-        await createRoom(
+        const result = await createRoom(
           newRoomName, 
           undefined, undefined,
           newEventName,
@@ -114,10 +122,13 @@ export function RoomList({ view }: { view?: string | null }) {
           pmFineAmount,
           isActive
         );
+
+        if (result.error) throw new Error(result.error);
+
         toast.success("Room updated successfully");
         setEditingRoom(null);
       } else {
-        const room = await createRoom(
+        const result = await createRoom(
           newRoomName, 
           undefined, undefined,
           newEventName,
@@ -137,6 +148,10 @@ export function RoomList({ view }: { view?: string | null }) {
           pmFineAmount,
           isActive
         );
+
+        if (result.error) throw new Error(result.error);
+        const room = result.data;
+
         setSuccessRoom({
           name: newRoomName,
           event: newEventName,
@@ -156,6 +171,10 @@ export function RoomList({ view }: { view?: string | null }) {
   };
 
   const handleEditRoom = (room: Room) => {
+    if (onEdit) {
+      onEdit(room);
+      return;
+    }
     setEditingRoom(room);
     setNewRoomName(room.name);
     setNewEventName(room.event_name || "");
@@ -317,7 +336,7 @@ export function RoomList({ view }: { view?: string | null }) {
         </div>
       )}
 
-      {(view === 'create' || !view) && (
+      {(view === 'create' || !view || editingRoom) && (
         <Card className="relative overflow-hidden border-border/50 bg-card/30 backdrop-blur-xl rounded-[2.5rem] shadow-2xl p-2">
           <CardHeader className="pb-4 pt-8 px-8">
             <div className="flex items-center gap-4">
@@ -595,6 +614,15 @@ export function RoomList({ view }: { view?: string | null }) {
 
                         {/* Right: Management Actions */}
                         <div className="absolute right-0 top-0 flex gap-1.5 z-20">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-xl bg-secondary/20 hover:bg-primary/20 transition-all border border-border/10 shadow-sm"
+                            onClick={() => handleEditRoom(room)}
+                            title="Edit Room"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 

@@ -55,12 +55,20 @@ export function AuthPageContent({ session }: { session?: any }) {
 
     try {
       if (mode === 'login') {
-        await signInWithID(name, id);
+        const result = await signInWithID(name, id);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
         toast.success('Login successful!');
         router.push('/dashboard');
         router.refresh();
       } else {
-        await signUpWithID(name, id, userRole, courseYear);
+        const result = await signUpWithID(name, id, userRole, courseYear);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
         toast.success('Account created!', { 
           description: userRole === 'student' ? 'Please complete facial registration.' : 'Taking you to dashboard...' 
         });

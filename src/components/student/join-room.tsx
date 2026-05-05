@@ -19,7 +19,10 @@ export function JoinRoom() {
 
     setIsJoining(true);
     try {
-      await joinRoom(code);
+      const result = await joinRoom(code);
+      if (result.error) {
+        throw new Error(result.error);
+      }
       toast.success("Joined room successfully!");
       setCode("");
       window.location.href = `/dashboard`;

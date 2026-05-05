@@ -318,7 +318,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       
       // Automatic confirmation
       try {
-        await registerFace(Array.from(detection.descriptor), imageData);
+        const result = await registerFace(Array.from(detection.descriptor), imageData);
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
         setStep("success");
         toast.success("Identity verified and registered!");
         if (onSuccess) {
@@ -374,7 +379,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     setIsRegistering(true);
     setHasFailedRegistration(false);
     try {
-      await registerFace(descriptor || [], capturedImage);
+      const result = await registerFace(descriptor || [], capturedImage);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
       setStep("success");
       toast.success("Profile updated successfully!");
       router.refresh();

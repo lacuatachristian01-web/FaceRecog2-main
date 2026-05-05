@@ -155,6 +155,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
   const [adminRooms, setAdminRooms] = React.useState<Room[]>([])
   const [selectedTerminalRoom, setSelectedTerminalRoom] = React.useState<string>(profile?.last_room_id || "")
   const [isSelectingRoom, setIsSelectingRoom] = React.useState(false)
+  const [editingRoom, setEditingRoom] = React.useState<Room | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -333,7 +334,7 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
               <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Create Room + Event Name</h2>
               <p className="text-sm text-muted-foreground max-w-lg">Initialize specific room locations and event designations.</p>
             </div>
-            <RoomList view="create" />
+            <RoomList view="create" initialEditingRoom={editingRoom} />
           </TabsContent>
         ) : null}
 
@@ -344,7 +345,13 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
               <h2 className="text-3xl font-black text-foreground italic uppercase tracking-tight">Created Rooms</h2>
               <p className="text-sm text-muted-foreground max-w-lg">Monitor and manage all active attendance sessions.</p>
             </div>
-            <RoomList view="list" />
+            <RoomList 
+              view="list" 
+              onEdit={(room) => {
+                setEditingRoom(room);
+                setActiveTab("rooms");
+              }} 
+            />
           </TabsContent>
         ) : null}
 

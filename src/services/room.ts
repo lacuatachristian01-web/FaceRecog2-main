@@ -35,15 +35,54 @@ export async function createRoom(
   pmFineAmount?: number,
   isActive?: boolean
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
 
-  if (id) {
+    if (id) {
+      const { data, error } = await supabase
+        .from('rooms')
+        .update({
+          name,
+          admin_id: user.id,
+          start_time: startTime,
+          end_time: endTime,
+          event_name: eventName,
+          start_time_am: startTimeAm,
+          end_time_am: endTimeAm,
+          start_time_pm: startTimePm,
+          end_time_pm: endTimePm,
+          am_time_in_start: amTimeInStart,
+          am_time_in_end: amTimeInEnd,
+          am_time_out_start: amTimeOutStart,
+          am_time_out_end: amTimeOutEnd,
+          pm_time_in_start: pmTimeInStart,
+          pm_time_in_end: pmTimeInEnd,
+          pm_time_out_start: pmTimeOutStart,
+          pm_time_out_end: pmTimeOutEnd,
+          event_date: sessionDate,
+          event_type: eventType,
+          am_fine_amount: amFineAmount,
+          pm_fine_amount: pmFineAmount,
+          is_active: isActive
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) return { error: error.message };
+      revalidatePath('/dashboard');
+      return { success: true, data };
+    }
+
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const { data, error } = await supabase
       .from('rooms')
-      .update({
+      .insert({
         name,
+        code,
         admin_id: user.id,
         start_time: startTime,
         end_time: endTime,
@@ -64,103 +103,65 @@ export async function createRoom(
         event_type: eventType,
         am_fine_amount: amFineAmount,
         pm_fine_amount: pmFineAmount,
-        is_active: isActive
+        is_active: isActive ?? true
       })
-      .eq('id', id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) return { error: error.message };
+
+    await supabase
+      .from('profiles')
+      .update({ last_room_id: data.id })
+      .eq('id', user.id);
+
     revalidatePath('/dashboard');
-    return data;
+    return { success: true, data };
+  } catch (err: any) {
+    return { error: err.message || 'Failed to create room' };
   }
-
-  // Generate a random 6-character code
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-  const { data, error } = await supabase
-    .from('rooms')
-    .insert({
-      name,
-      code,
-      admin_id: user.id,
-      start_time: startTime,
-      end_time: endTime,
-      event_name: eventName,
-      start_time_am: startTimeAm,
-      end_time_am: endTimeAm,
-      start_time_pm: startTimePm,
-      end_time_pm: endTimePm,
-      am_time_in_start: amTimeInStart,
-      am_time_in_end: amTimeInEnd,
-      am_time_out_start: amTimeOutStart,
-      am_time_out_end: amTimeOutEnd,
-      pm_time_in_start: pmTimeInStart,
-      pm_time_in_end: pmTimeInEnd,
-      pm_time_out_start: pmTimeOutStart,
-      pm_time_out_end: pmTimeOutEnd,
-      event_date: sessionDate,
-      event_type: eventType,
-      am_fine_amount: amFineAmount,
-      pm_fine_amount: pmFineAmount,
-      is_active: isActive ?? true
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // 4. Update admin's last_room_id so it shows up in their logs immediately
-  await supabase
-    .from('profiles')
-    .update({ last_room_id: data.id })
-    .eq('id', user.id);
-
-  revalidatePath('/dashboard');
-  return data;
 }
 
 
 export async function joinRoom(code: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
 
-  // 1. Find the room by code
-  const { data: room, error: roomError } = await supabase
-    .from('rooms')
-    .select('id, is_active')
-    .eq('code', code.toUpperCase())
-    .single();
+    const { data: room, error: roomError } = await supabase
+      .from('rooms')
+      .select('id, is_active')
+      .eq('code', code.toUpperCase())
+      .single();
 
-  if (roomError || !room) throw new Error('Invalid room code');
-  if (room.is_active === false) throw new Error('This room is currently inactive');
+    if (roomError || !room) return { error: 'Invalid room code' };
+    if (room.is_active === false) return { error: 'This room is currently inactive' };
 
-  // 2. Add student to participants (pending approval)
-  const { error: joinError } = await supabase
-    .from('room_participants')
-    .insert({
-      room_id: room.id,
-      student_id: user.id,
-      is_approved: false
-    });
+    const { error: joinError } = await supabase
+      .from('room_participants')
+      .insert({
+        room_id: room.id,
+        student_id: user.id,
+        is_approved: false
+      });
 
-  if (joinError) {
-    console.error('Join Error Detail:', joinError);
-    if (joinError.code === '23505') {
-      throw new Error('You are already in this room');
+    if (joinError) {
+      if (joinError.code === '23505') {
+        return { error: 'You are already in this room' };
+      }
+      return { error: joinError.message };
     }
-    // Return the specific database error message
-    throw new Error(`Database Error: ${joinError.message} (Code: ${joinError.code})`);
+
+    await supabase
+      .from('profiles')
+      .update({ last_room_id: room.id })
+      .eq('id', user.id);
+
+    return { success: true, roomId: room.id };
+  } catch (err: any) {
+    return { error: err.message || 'Failed to join room' };
   }
-
-  // 3. Update student's last_room_id in profile for easy dashboard loading
-  await supabase
-    .from('profiles')
-    .update({ last_room_id: room.id })
-    .eq('id', user.id);
-
-  return { success: true, roomId: room.id };
 }
 
 export async function getAdminRooms() {
@@ -264,19 +265,23 @@ export async function getRoomParticipants(roomId: string) {
 }
 
 export async function toggleRoomStatus(roomId: string, currentStatus: boolean) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
 
-  const newStatus = !currentStatus;
+    const newStatus = !currentStatus;
 
-  const { error } = await supabase
-    .from('rooms')
-    .update({ is_active: newStatus })
-    .eq('id', roomId)
-    .eq('admin_id', user.id);
+    const { error } = await supabase
+      .from('rooms')
+      .update({ is_active: newStatus })
+      .eq('id', roomId)
+      .eq('admin_id', user.id);
 
-  if (error) throw error;
-  revalidatePath('/dashboard');
-  return { success: true };
+    if (error) return { error: error.message };
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message || 'Failed to toggle status' };
+  }
 }

@@ -1,5 +1,13 @@
 # API & Services Documentation
 
+## 🛡️ Standardized Response Pattern
+As of v2.5.1, all services follow a consistent return-object pattern to ensure UI stability and clean console output in Next.js 16 (Turbopack):
+- **Success**: `{ success: true, data: ... }`
+- **Error**: `{ error: "Descriptive error message" }`
+
+### 🚀 Network Resilience
+Critical attendance services include an automatic **Retry Mechanism** (up to 3 attempts) with exponential backoff to handle high-latency network conditions.
+
 ## 📂 Logic Layer (src/services/)
 All business logic is encapsulated in the `src/services/` directory using Server Actions or Client Services.
 

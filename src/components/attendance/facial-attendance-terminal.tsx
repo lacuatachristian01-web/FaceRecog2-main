@@ -87,8 +87,12 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
 
   const fetchStatus = async () => {
     try {
-      const status = await getTodayStatus(roomId, userId);
-      setTodayStatus(status);
+      const result = await getTodayStatus(roomId, userId);
+      if (result.error) {
+        console.error("Status error:", result.error);
+        return;
+      }
+      setTodayStatus(result.data);
     } catch (err) {
       console.error("Failed to fetch status", err);
     }
@@ -168,7 +172,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   }
                 }
 
-                if (bestMatch && minDistance < 0.45) {
+                if (bestMatch && minDistance < 0.55) {
                   setMatchedStudent(bestMatch);
                   if (!detectionStartTime.current) detectionStartTime.current = Date.now();
                   
@@ -190,27 +194,38 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                         return;
                       }
 
-                      const sStatus = await getTodayStatus(roomId, bestMatch.id);
+                      const result = await getTodayStatus(roomId, bestMatch.id);
+                      const sStatus = result.data;
                       const type = !sStatus ? 'in' : 'out';
-                      if (!(type === 'out' && sStatus?.time_out)) {
-                        let capturedFrame = null;
-                        if (!bestMatch.face_image) {
-                          const canvasEl = document.createElement("canvas");
-                          canvasEl.width = video.videoWidth; canvasEl.height = video.videoHeight;
-                          const ctxEl = canvasEl.getContext("2d");
-                          if (ctxEl) {
-                            ctxEl.scale(-1, 1);
-                            ctxEl.drawImage(video, -canvasEl.width, 0, canvasEl.width, canvasEl.height);
-                            capturedFrame = canvasEl.toDataURL("image/jpeg", 0.8);
-                          }
-                        }
-                        processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
+                      
+                      if (type === 'out' && sStatus?.time_out) {
+                        toast.info(`${bestMatch.full_name} has already completed today's session.`);
+                        detectionStartTime.current = null;
+                        setAutoTriggerProgress(0);
+                        return;
                       }
+
+                      let capturedFrame = null;
+                      if (!bestMatch.face_image) {
+                        const canvasEl = document.createElement("canvas");
+                        canvasEl.width = video.videoWidth; canvasEl.height = video.videoHeight;
+                        const ctxEl = canvasEl.getContext("2d");
+                        if (ctxEl) {
+                          ctxEl.scale(-1, 1);
+                          ctxEl.drawImage(video, -canvasEl.width, 0, canvasEl.width, canvasEl.height);
+                          capturedFrame = canvasEl.toDataURL("image/jpeg", 0.8);
+                        }
+                      }
+                      processGlobalAttendance(bestMatch.id, bestMatch.full_name, type, capturedFrame);
                     } else {
                       const type = !todayStatus ? 'in' : 'out';
-                      if (!(type === 'out' && todayStatus?.time_out)) {
-                        processAttendance(type);
+                      if (type === 'out' && todayStatus?.time_out) {
+                        toast.info("Your attendance session is already complete for today.");
+                        detectionStartTime.current = null;
+                        setAutoTriggerProgress(0);
+                        return;
                       }
+                      processAttendance(type);
                     }
                   }
                 } else {
@@ -284,13 +299,17 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     setIsProcessing(true);
     try {
       if (type === 'in') {
-        await timeIn(roomId, userId);
+        const result = await timeIn(roomId, userId);
+        if (result.error) throw new Error(result.error);
+        
         const msg = `Successfully Time In!`;
         setActionMessage(msg);
         const utterance = new SpeechSynthesisUtterance("Time In Successful");
         window.speechSynthesis.speak(utterance);
       } else {
-        await timeOut(roomId, userId);
+        const result = await timeOut(roomId, userId);
+        if (result.error) throw new Error(result.error);
+
         const msg = `Successfully Time Out!`;
         setActionMessage(msg);
         const utterance = new SpeechSynthesisUtterance("Time Out Successful");
@@ -323,13 +342,17 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       }
 
       if (type === 'in') {
-        await timeIn(roomId, sId);
+        const result = await timeIn(roomId, sId);
+        if (result.error) throw new Error(result.error);
+
         const msg = `Successfully Time In: ${sName}`;
         setActionMessage(msg);
         const utterance = new SpeechSynthesisUtterance(`Welcome, ${sName}. Time in successful.`);
         window.speechSynthesis.speak(utterance);
       } else {
-        await timeOut(roomId, sId);
+        const result = await timeOut(roomId, sId);
+        if (result.error) throw new Error(result.error);
+
         const msg = `Successfully Time Out: ${sName}`;
         setActionMessage(msg);
         const utterance = new SpeechSynthesisUtterance(`Goodbye, ${sName}. Time out successful.`);
@@ -480,13 +503,24 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                       <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-[3rem] opacity-40" />
                     </div>
 
-                    {/* Inner Pulse Circle */}
+                    {/* Inner Pulse Circle & Progress Percent */}
                     {faceDetected && (
                       <motion.div 
                         animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
                         transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute inset-10 border border-primary/30 rounded-[3rem]"
-                      />
+                        className="absolute inset-10 border border-primary/30 rounded-[3rem] flex items-center justify-center"
+                      >
+                        {autoTriggerProgress > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="text-6xl font-black text-primary/40 italic flex flex-col items-center"
+                          >
+                            <span className="leading-none">{Math.round(autoTriggerProgress)}</span>
+                            <span className="text-xl tracking-[0.5em] ml-2">%</span>
+                          </motion.div>
+                        )}
+                      </motion.div>
                     )}
 
                     {/* Identification Label */}
@@ -520,17 +554,22 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                           {autoTriggerProgress > 0 ? (
                             <>
                               <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Scanning Data Points... {Math.round(autoTriggerProgress)}%</span>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary italic">Confirming Identity... {Math.round(autoTriggerProgress)}%</span>
                             </>
                           ) : matchedStudent?.full_name === "Unrecognized" ? (
                             <>
                               <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Access Denied: Unrecognized</span>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-500 italic">Face Unrecognized</span>
+                            </>
+                          ) : matchedStudent ? (
+                             <>
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 italic">Hold Still: {matchedStudent.full_name}</span>
                             </>
                           ) : (
                             <>
                               <div className="w-2 h-2 rounded-full bg-blue-500/50" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Stabilizing Image</span>
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 italic">Analyzing Face...</span>
                             </>
                           )}
                         </motion.div>
@@ -618,27 +657,33 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.05 }}
-                  className="absolute inset-0 bg-primary/10 backdrop-blur-xl flex items-center justify-center z-30 p-6"
+                  className="absolute inset-0 bg-emerald-500/20 backdrop-blur-2xl flex items-center justify-center z-30 p-6"
                 >
-                  <Card className="bg-card/95 border-primary/20 shadow-2xl rounded-[2.5rem] max-w-sm w-full text-center p-8 overflow-hidden relative">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-primary animate-shimmer" />
-                    <div className="mx-auto bg-primary/10 p-4 rounded-full w-fit mb-6">
-                      <CheckCircle2 className="h-12 w-12 text-primary" />
+                  <Card className="bg-card/95 border-emerald-500/30 shadow-[0_0_100px_rgba(16,185,129,0.2)] rounded-[3rem] max-w-sm w-full text-center p-10 overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500 animate-pulse" />
+                    <div className="mx-auto bg-emerald-500/20 p-6 rounded-full w-fit mb-8 shadow-inner ring-4 ring-emerald-500/10">
+                      <CheckCircle2 className="h-16 w-16 text-emerald-500" />
                     </div>
-                    <h3 className="text-2xl font-black tracking-tighter text-foreground mb-2 uppercase italic">{actionMessage}</h3>
-                    <p className="text-sm text-muted-foreground font-medium mb-6">Attendance successfully recorded in the blockchain.</p>
+                    
+                    <div className="space-y-4">
+                      <Badge className="bg-emerald-500 text-white border-none px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] italic rounded-full mb-2">
+                        Biometric Match Verified
+                      </Badge>
+                      <h3 className="text-4xl font-black tracking-tighter text-foreground leading-none uppercase italic drop-shadow-sm">
+                        {actionMessage}
+                      </h3>
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest opacity-80">
+                        Attendance Log Secured
+                      </p>
+                    </div>
                     
                     {todayStatus && (
-                      <div className="space-y-3 pt-6 border-t border-border">
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          <span>Timeline Status</span>
-                          <div className="flex gap-1.5">
-                            {todayStatus.events?.length > 0 ? todayStatus.events.map((e: string) => (
-                              <Badge key={e} variant="outline" className="bg-destructive/5 text-destructive border-destructive/10 px-2 py-0 text-[9px]">
-                                {e}
-                              </Badge>
-                            )) : <Badge variant="outline" className="bg-emerald-500/5 text-emerald-500 border-emerald-500/10 px-2 py-0 text-[9px]">Punctual</Badge>}
-                          </div>
+                      <div className="mt-10 pt-8 border-t border-emerald-500/10">
+                        <div className="flex justify-between items-center bg-secondary/30 px-5 py-3 rounded-2xl border border-border/50">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Session Status</span>
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                            Punctual
+                          </Badge>
                         </div>
                       </div>
                     )}

@@ -2,6 +2,24 @@
 
 All notable changes to the **Facial Automated Attendance** project will be documented in this file.
 
+## [2026-05-05] - Room Management & Terminal UX Hardening
+
+### Added
+- **Full Room Editing**: Admins can now edit existing attendance sessions, including room names, event dates, event types, and AM/PM time windows.
+- **Cross-Tab Navigation**: Clicking "Edit" in the room registry now automatically redirects the admin to the editor tab with pre-filled data.
+- **Enhanced Biometric Terminal**:
+  - **Central Progress Indicator**: Added a large pulsing percentage counter in the scanner frame for better user feedback.
+  - **Premium Success State**: Overhauled the success screen with a high-contrast emerald theme and "Biometric Match Verified" badge.
+  - **"Already Recorded" Feedback**: The terminal now provides explicit toast notifications for students who have already completed their session.
+- **Service Hardening**:
+  - Implemented a **Network Retry Mechanism** (3 attempts) for attendance services to handle high-latency connections.
+  - Standardized all service return types to use `{ error, success, data }` objects for robust error handling.
+
+### Fixed
+- **State Integrity**: Resolved a bug in the room list where state duplication led to component crashes.
+- **Syntax Cleanup**: Fixed a corrupted `'use client'` directive in `LoginForm.tsx`.
+- **Database Consistency**: Added migration for `am_fine_amount` and `pm_fine_amount` to ensure schema alignment.
+
 ## [2026-04-29] - Admin & Attendance Intelligence
 
 ### Added

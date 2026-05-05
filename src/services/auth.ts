@@ -10,32 +10,40 @@ import { headers } from 'next/headers';
  */
 
 export async function signInWithID(name: string, id: string) {
-  const client = await createClient();
-  
-  // Sanitize ID for email: remove non-alphanumeric and use standard domain
-  const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  const email = `u${sanitizedId}@student.com`;
-  
-  const { error: signInError } = await client.auth.signInWithPassword({
-    email,
-    password: id,
-  });
+  try {
+    const client = await createClient();
+    
+    // Sanitize ID for email: remove non-alphanumeric and use standard domain
+    const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const email = `u${sanitizedId}@student.com`;
+    
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email,
+      password: id,
+    });
 
-  if (signInError) throw signInError;
+    if (signInError) return { error: signInError.message };
 
-  return { success: true };
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message || 'An unknown error occurred' };
+  }
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const client = await createClient();
-  const { data, error } = await client.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const client = await createClient();
+    const { data, error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) throw error;
+    if (error) return { error: error.message };
 
-  return { success: true, user: data.user };
+    return { success: true, user: data.user };
+  } catch (err: any) {
+    return { error: err.message || 'An unknown error occurred' };
+  }
 }
 
 export async function signUpWithID(
@@ -44,26 +52,31 @@ export async function signUpWithID(
   role: 'admin' | 'student' = 'student', 
   courseYear?: string
 ) {
-  const client = await createClient();
-  
-  // Sanitize ID for email: remove non-alphanumeric and use standard domain
-  const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  const email = `u${sanitizedId}@student.com`;
+  try {
+    const client = await createClient();
+    
+    // Sanitize ID for email: remove non-alphanumeric and use standard domain
+    const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const email = `u${sanitizedId}@student.com`;
 
-  const { data, error } = await client.auth.signUp({
-    email,
-    password: id,
-    options: {
-      data: {
-        role,
-        full_name: name,
-        student_id: id,
-        course_year: courseYear,
+    const { data, error } = await client.auth.signUp({
+      email,
+      password: id,
+      options: {
+        data: {
+          role,
+          full_name: name,
+          student_id: id,
+          course_year: courseYear,
+        }
       }
-    }
-  });
-  if (error) throw error;
-  return { success: true, user: data.user };
+    });
+
+    if (error) return { error: error.message };
+    return { success: true, user: data.user };
+  } catch (err: any) {
+    return { error: err.message || 'An unknown error occurred' };
+  }
 }
 
 export async function signOut() {

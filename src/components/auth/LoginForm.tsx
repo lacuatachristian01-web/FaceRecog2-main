@@ -21,7 +21,14 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      await signInWithEmail(email, password);
+      const result = await signInWithEmail(email, password);
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred');
@@ -79,8 +86,8 @@ export default function LoginForm() {
         </div>
 
         <div className="flex justify-end px-1">
-          <Link 
-            href="/forgot-password" 
+          <Link
+            href="/forgot-password"
             className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             Forgot password?
