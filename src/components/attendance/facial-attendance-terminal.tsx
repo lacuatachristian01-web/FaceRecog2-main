@@ -251,8 +251,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   // Handle Unrecognized Notification
                   if (!unrecognizedStartTime) {
                     setUnrecognizedStartTime(Date.now());
-                  } else if (Date.now() - unrecognizedStartTime > 2500) {
-                    toast.error("Face not recognized. Please adjust your position.", {
+                  } else if (Date.now() - unrecognizedStartTime > 3000) {
+                    toast.error("Face not recognized. Please try again.", {
                       id: 'unrecognized-toast'
                     });
                     setUnrecognizedStartTime(Date.now()); // Reset to avoid spam
