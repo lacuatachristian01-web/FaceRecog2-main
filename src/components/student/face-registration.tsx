@@ -325,16 +325,21 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
+      // Reset transform before drawing
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      
+      // Draw centered crop
       ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
       
-      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
       
       setCapturedImage(imageData);
       setDescriptor(Array.from(detection.descriptor));
       
-      // Manual confirmation: Just move to captured step, don't auto-register
+      // Manual confirmation: Just move to captured step
       setStep("captured");
-      setIsRegistering(false); // Release lock so user can interact
+      setIsRegistering(false);
+      stopVideo(); // Stop now that we have the image
     }
   };
 
@@ -944,29 +949,28 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                   </Button>
                 )}
 
-                {registrationType === 'simple' && (
-                  <div className="flex flex-col gap-2">
-                    {registrationError !== "This Face is Already Registered!" && (
-                      <Button 
-                        variant="ghost" 
-                        onClick={handleReEdit}
-                        className="text-zinc-400 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
-                      >
-                        <RefreshCcw className="w-3.5 h-3.5" />
-                        Re-edit Photo
-                      </Button>
-                    )}
-                    
+                {/* Always show retake option in captured step */}
+                <div className="flex flex-col gap-2 mt-4">
+                  {registrationType === 'simple' && registrationError !== "This Face is Already Registered!" && (
                     <Button 
                       variant="ghost" 
-                      onClick={handleRetake}
-                      className="text-zinc-600 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                      onClick={handleReEdit}
+                      className="text-zinc-400 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
                     >
-                      <Camera className="w-3.5 h-3.5" />
-                      {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Take New Photo"}
+                      <RefreshCcw className="w-3.5 h-3.5" />
+                      Re-edit Photo
                     </Button>
-                  </div>
-                )}
+                  )}
+                  
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleRetake}
+                    className="text-zinc-500 hover:text-white flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    {registrationError === "This Face is Already Registered!" ? "Try Different Face" : "Retake Photo"}
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}
