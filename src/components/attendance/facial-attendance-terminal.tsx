@@ -239,7 +239,6 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           }
 
           // Reset unrecognized timer if a match is found
-          // Reset unrecognized timer if a match is found
           if (bestMatch && minDistance < 0.6) {
             setUnrecognizedStartTime(null);
           }
@@ -518,7 +517,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                 {/* Visual Guides */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className={cn(
-                    "w-[280px] h-[350px] border border-white/10 rounded-[4rem] transition-all duration-500 relative flex items-center justify-center",
+                    "w-[320px] h-[320px] border border-white/10 rounded-[48px] transition-all duration-500 relative flex items-center justify-center",
                     faceDetected ? "border-primary/50 scale-105 shadow-[0_0_60px_rgba(59,130,246,0.2)]" : "scale-100"
                   )}>
                     {/* Scanning Line Animation */}
@@ -621,22 +620,26 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                       </div>
                     )}
 
-                    {/* Auto-Trigger Progress Ring */}
+                    {/* Auto-Trigger Progress Border */}
                     {faceDetected && !isProcessing && status === 'idle' && (
-                      <svg className="absolute inset-[-20px] w-[calc(100%+40px)] h-[calc(100%+40px)] rotate-[-90deg]">
-                        <circle
-                          cx="50%"
-                          cy="50%"
-                          r="170"
+                      <svg className="absolute inset-[-20px] w-[calc(100%+40px)] h-[calc(100%+40px)]">
+                        <rect
+                          x="10"
+                          y="10"
+                          width="340"
+                          height="340"
+                          rx="58"
                           className="fill-none stroke-blue-500/10 stroke-[2]"
                         />
-                        <motion.circle
-                          cx="50%"
-                          cy="50%"
-                          r="170"
-                          initial={{ strokeDashoffset: 1068 }}
-                          animate={{ strokeDashoffset: 1068 - (1068 * autoTriggerProgress) / 100 }}
-                          style={{ strokeDasharray: 1068 }}
+                        <motion.rect
+                          x="10"
+                          y="10"
+                          width="340"
+                          height="340"
+                          rx="58"
+                          initial={{ strokeDashoffset: 1360 }}
+                          animate={{ strokeDashoffset: 1360 - (1360 * autoTriggerProgress) / 100 }}
+                          style={{ strokeDasharray: 1360 }}
                           className="fill-none stroke-primary stroke-[4] transition-all duration-100 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"
                         />
                       </svg>

@@ -137,8 +137,8 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           const centerX = x + width / 2;
           const centerY = y + height / 2;
           
-          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.08; // Strict centering
-          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.08;
+          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.15; // Increased from 0.08 for easier centering
+          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.12; // Increased from 0.08
           
           const landmarks = detection.landmarks;
           const nose = landmarks.getNose();
@@ -149,7 +149,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
           // Precision Check: Face Leveling (Eyes must be aligned horizontally)
           const eyeDeltaY = Math.abs(leftEye[0].y - rightEye[0].y);
-          const isLeveled = eyeDeltaY < (detection.detection.box.height * 0.02);
+          const isLeveled = eyeDeltaY < (detection.detection.box.height * 0.05); // Increased from 0.02 for easier leveling
 
           // Precision Check: Head Rotation (Yaw)
           const distToLeftEye = Math.abs(nose[0].x - leftEye[0].x);
@@ -171,13 +171,13 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             if (!isLeveled) {
               setIsCorrectPosture(false);
               setGuideMessage("LEVEL YOUR FACE");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 15)); // Graceful decay instead of instant reset
               return;
             }
             if (!isLookingStraight) {
               setIsCorrectPosture(false);
               setGuideMessage("LOOK DIRECTLY AT CAMERA");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 15));
               return;
             }
 
@@ -185,34 +185,34 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             if (isMaskSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR MASK");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
               return;
             }
             if (isCapSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR CAP");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
               return;
             }
             if (isGlassesSuspected) {
               setIsCorrectPosture(false);
               setGuideMessage("REMOVE YOUR EYEGLASSES/SUNGLASSES");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 25));
               return;
             }
 
             if (!isHighConfidence) {
               setIsCorrectPosture(false);
               setGuideMessage("FACE OBSCURED - CLEAR FACE");
-              setAutoCaptureProgress(0);
+              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
               return;
             }
 
             setIsCorrectPosture(true);
-            setGuideMessage("Verified! Processing...");
+            setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
             
             setAutoCaptureProgress(prev => {
-              const next = prev + 34; // Rapid Lock-On (3 frames to capture)
+              const next = prev + 15; // 7-8 frames to capture (approx 600ms) - More stable
               if (next >= 100) {
                 setTimeout(() => {
                   clearInterval(interval);
@@ -225,14 +225,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           } else {
             setIsCorrectPosture(false);
             setGuideMessage("Center your face in the frame");
-            setAutoCaptureProgress(0);
+            setAutoCaptureProgress(prev => Math.max(0, prev - 20));
           }
         } else {
-          setFaceDetected(true); // Don't hide the "Face Detected" indicator too aggressively
-          setFaceDetected(false);
           setIsCorrectPosture(false);
           setGuideMessage("Finding face...");
-          setAutoCaptureProgress(0);
+          setAutoCaptureProgress(prev => Math.max(0, prev - 30));
         }
       }, 80); // Balanced interval for CPU reliability
     }
@@ -587,38 +585,44 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                 {registrationType === 'biometric' ? (
                   /* BIOMETRIC MODE: Circular GCash Style Frame */
                   <div className="relative w-80 h-80">
-                    {/* Progress Ring SVG */}
-                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none z-30">
-                      <circle
-                        cx="160"
-                        cy="160"
-                        r="150"
+                    {/* Progress Border SVG */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-30">
+                      <rect
+                        x="10"
+                        y="10"
+                        width="300"
+                        height="300"
+                        rx="48"
                         stroke="currentColor"
                         strokeWidth="8"
                         fill="transparent"
                         className="text-white/5"
                       />
-                      <motion.circle
-                        cx="160"
-                        cy="160"
-                        r="150"
+                      <motion.rect
+                        x="10"
+                        y="10"
+                        width="300"
+                        height="300"
+                        rx="48"
                         stroke="currentColor"
                         strokeWidth="8"
-                        strokeDasharray="942"
-                        initial={{ strokeDashoffset: 942 }}
+                        fill="transparent"
+                        strokeDasharray="1200"
+                        initial={{ strokeDashoffset: 1200 }}
                         animate={{ 
-                          strokeDashoffset: 942 - (942 * (autoCaptureProgress / 100)),
-                          color: isCorrectPosture ? "#10b981" : "#3b82f6"
+                          strokeDashoffset: 1200 - (1200 * (autoCaptureProgress / 100)),
+                          color: autoCaptureProgress > 80 ? "#10b981" : isCorrectPosture ? "#3b82f6" : "#ef4444",
+                          scale: autoCaptureProgress > 90 ? [1, 1.02, 1] : 1
                         }}
                         strokeLinecap="round"
-                        fill="transparent"
-                        className="transition-all duration-500"
+                        transition={{ duration: 0.1, ease: "linear" }}
+                        className="origin-center"
                       />
                     </svg>
 
-                    {/* Video Container (Circular) */}
+                    {/* Video Container (Square) */}
                     <div className={cn(
-                      "absolute inset-4 rounded-full border-4 overflow-hidden bg-zinc-950 transition-all duration-500 z-20",
+                      "absolute inset-4 rounded-[40px] border-4 overflow-hidden bg-zinc-950 transition-all duration-500 z-20",
                       faceDetected ? "border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.3)]" : "border-white/10"
                     )}>
                       <video
@@ -639,16 +643,16 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
                       {/* Face Silhouette Guide */}
                       <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
-                        <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] text-white">
-                          <path 
-                            d="M50,15 C35,15 25,28 25,45 C25,62 35,85 50,85 C65,85 75,62 75,45 C75,28 65,15 50,15 Z" 
+                        <svg viewBox="0 0 100 100" className="w-[70%] h-[70%] text-white">
+                          <rect 
+                            x="20" y="20" width="60" height="60" rx="10"
                             fill="none" 
                             stroke="currentColor" 
                             strokeWidth="1" 
                             strokeDasharray="4 4"
                           />
-                          <path d="M40,40 Q40,38 42,38 Q44,38 44,40" fill="none" stroke="currentColor" strokeWidth="1" />
-                          <path d="M56,40 Q56,38 58,38 Q60,38 60,40" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M40,45 Q40,43 42,43 Q44,43 44,45" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M56,45 Q56,43 58,43 Q60,43 60,45" fill="none" stroke="currentColor" strokeWidth="1" />
                         </svg>
                       </div>
 
@@ -739,7 +743,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                         <div className="w-2 h-2 rounded-full bg-zinc-700 animate-pulse mr-3" />
                       )}
                       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
-                        {faceDetected ? "Auto-Capture Ready" : "Waiting for Face..."}
+                        {autoCaptureProgress > 0 ? "Capturing Biometrics..." : faceDetected ? "Adjusting Posture..." : "Waiting for Face..."}
                       </span>
                     </div>
                   )}
