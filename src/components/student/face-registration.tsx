@@ -325,48 +325,16 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const cropX = Math.max(0, x - width * padding);
       const cropY = Math.max(0, y - height * padding);
 
-      ctx.drawImage(video, cropX, cropY, size, size, -targetSize, 0, targetSize, targetSize);
+      ctx.drawImage(video, cropX, cropY, size, size, 0, 0, targetSize, targetSize);
       
-      // Stop video AFTER drawing to canvas to avoid 0-width errors
-      stopVideo();
-      
-      const imageData = canvas.toDataURL("image/jpeg", 0.6); // Low quality for fast upload
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
       
       setCapturedImage(imageData);
       setDescriptor(Array.from(detection.descriptor));
       
-      // Switch to captured step immediately so user sees the result while waiting
+      // Manual confirmation: Just move to captured step, don't auto-register
       setStep("captured");
-      
-      // Automatic confirmation
-      try {
-        const result = await registerFace(Array.from(detection.descriptor), imageData);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        setStep("success");
-        toast.success("Identity verified and registered!");
-        if (onSuccess) {
-          setTimeout(() => onSuccess(), 2000);
-        }
-      } catch (err: any) {
-        const msg = err.message || "Failed to register face";
-        setRegistrationError(msg);
-        toast.error(msg);
-        setHasFailedRegistration(true);
-        
-        // If it's a duplicate, auto-reset after a delay to let them try again
-        if (msg.toLowerCase().includes("already registered")) {
-          // Handled by UI, but we stay in captured step
-          setStep("captured");
-        } else {
-          setStep("captured");
-        }
-      } finally {
-        setIsRegistering(false);
-      }
+      setIsRegistering(false); // Release lock so user can interact
     }
   };
 
@@ -771,7 +739,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                         <div className="w-2 h-2 rounded-full bg-zinc-700 animate-pulse mr-3" />
                       )}
                       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500 italic">
-                        {autoCaptureProgress > 0 ? "Capturing Biometrics..." : faceDetected ? "Adjusting Posture..." : "Waiting for Face..."}
+                        {autoCaptureProgress > 0 ? `Capturing... ${Math.round(autoCaptureProgress)}%` : faceDetected ? "Adjusting Posture..." : "Waiting for Face..."}
                       </span>
                     </div>
                   )}
