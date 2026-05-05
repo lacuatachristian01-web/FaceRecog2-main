@@ -250,9 +250,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   }, [isStreaming, isModelLoaded, step, registrationType]);
 
   const handleCapture = async () => {
-    if (!videoRef.current) return;
-    
     const video = videoRef.current;
+    if (video.readyState < 2 || video.videoWidth <= 0) {
+      toast.error("Video not ready. Please wait.");
+      return;
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -284,8 +287,14 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   const handleAutoCapture = async (detection: any) => {
     if (!videoRef.current || isRegistering) return;
     
-    // 1. Stop video immediately to give visual feedback that capture happened
-    stopVideo();
+    const video = videoRef.current;
+    
+    // Safety check for video readiness before capture
+    if (video.readyState < 2 || video.videoWidth <= 0) {
+      console.warn("[FaceRegistration] Video not ready for auto-capture");
+      return;
+    }
+
     setIsRegistering(true);
     setGuideMessage("Processing Biometrics...");
     
@@ -318,6 +327,10 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       const cropY = Math.max(0, y - height * padding);
 
       ctx.drawImage(video, cropX, cropY, size, size, -targetSize, 0, targetSize, targetSize);
+      
+      // Stop video AFTER drawing to canvas to avoid 0-width errors
+      stopVideo();
+      
       const imageData = canvas.toDataURL("image/jpeg", 0.6); // Low quality for fast upload
       
       setCapturedImage(imageData);
