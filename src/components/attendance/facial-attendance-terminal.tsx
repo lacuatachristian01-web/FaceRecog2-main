@@ -221,8 +221,9 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                 }
 
                 if (bestMatch && minDistance < 0.6) {
-                  setMatchedStudent(bestMatch);
+                  // If we have a potential match in real-time, trigger the CAPTURE and scan THAT
                   setUnrecognizedStartTime(null);
+                  setMatchedStudent(bestMatch);
                   if (!detectionStartTime.current) detectionStartTime.current = Date.now();
                   
                   const elapsed = Date.now() - detectionStartTime.current;
@@ -236,12 +237,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                     setShowFlash(true);
                     setTimeout(() => setShowFlash(false), 150);
                     
-                    if (isGlobal) {
-                      processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
-                    } else {
-                      const type = !todayStatus ? 'in' : 'out';
-                      processAttendance(type);
-                    }
+                    // Trigger capture and final scan
+                    processCapturedAttendance(video, detection);
                   }
                 } else {
                   setMatchedStudent({ full_name: "Unrecognized" });
@@ -356,6 +353,68 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setStatus('error');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const processCapturedAttendance = async (video: HTMLVideoElement, initialDetection: any) => {
+    try {
+      // 1. Capture the face frame
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -video.videoWidth, 0, video.videoWidth, video.videoHeight);
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
+      setCapturedImage(imageData);
+
+      // 2. Perform the FINAL SCAN on the captured image
+      // This fulfills the request: "the captured face will be the one to be scanned"
+      const capturedDetection = await faceapi
+        .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!capturedDetection) {
+        toast.error("Not Successfully Time In: Capture lost focus");
+        setIsProcessing(false);
+        setCapturedImage(null);
+        return;
+      }
+
+      // 3. Match the CAPTURED descriptor
+      let bestMatch: any = null;
+      let minDistance = 1.0;
+      const targetEmbeddings = isGlobal ? allRegisteredStudents : (currentUserEmbedding ? [currentUserEmbedding] : []);
+      
+      for (const p of targetEmbeddings) {
+        const emb = p.parsed_embedding;
+        if (!emb) continue;
+        const d = getDistance(capturedDetection.descriptor, emb);
+        if (d < minDistance) {
+          minDistance = d;
+          bestMatch = p;
+        }
+      }
+
+      if (bestMatch && minDistance < 0.6) {
+        if (isGlobal) {
+          await processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
+        } else {
+          const type = !todayStatus ? 'in' : 'out';
+          await processAttendance(type);
+        }
+      } else {
+        toast.error("Not Successfully Time In: Re-verification failed");
+        setIsProcessing(false);
+        setCapturedImage(null);
+      }
+    } catch (err) {
+      console.error("Capture process error:", err);
+      setIsProcessing(false);
+      setCapturedImage(null);
     }
   };
 
