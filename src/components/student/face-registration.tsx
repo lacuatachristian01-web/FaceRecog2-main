@@ -643,16 +643,16 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
 
                       {/* Face Silhouette Guide */}
                       <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center opacity-20 group-hover:opacity-30 transition-opacity">
-                        <svg viewBox="0 0 100 100" className="w-[70%] h-[70%] text-white">
-                          <rect 
-                            x="20" y="20" width="60" height="60" rx="10"
+                        <svg viewBox="0 0 100 100" className="w-[80%] h-[80%] text-white">
+                          <path 
+                            d="M50,15 C35,15 25,28 25,45 C25,62 35,85 50,85 C65,85 75,62 75,45 C75,28 65,15 50,15 Z" 
                             fill="none" 
                             stroke="currentColor" 
                             strokeWidth="1" 
                             strokeDasharray="4 4"
                           />
-                          <path d="M40,45 Q40,43 42,43 Q44,43 44,45" fill="none" stroke="currentColor" strokeWidth="1" />
-                          <path d="M56,45 Q56,43 58,43 Q60,43 60,45" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M40,40 Q40,38 42,38 Q44,38 44,40" fill="none" stroke="currentColor" strokeWidth="1" />
+                          <path d="M56,40 Q56,38 58,38 Q60,38 60,40" fill="none" stroke="currentColor" strokeWidth="1" />
                         </svg>
                       </div>
 
