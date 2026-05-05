@@ -9,53 +9,45 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      attendance: {
+      profiles: {
         Row: {
           id: string
-          room_id: string
-          student_id: string
-          time_in: string
-          time_out: string | null
-          events: string[] | null
-          fines: number | null
+          full_name: string | null
+          student_id: string | null
+          face_registered: boolean
+          face_embedding: any | null
+          face_image: string | null
+          role: 'admin' | 'student'
           created_at: string
         }
         Insert: {
-          id?: string
-          room_id: string
-          student_id: string
-          time_in?: string
-          time_out?: string | null
-          events?: string[] | null
-          fines?: number | null
+          id: string
+          full_name?: string | null
+          student_id?: string | null
+          face_registered?: boolean
+          face_embedding?: any | null
+          face_image?: string | null
+          role?: 'admin' | 'student'
           created_at?: string
         }
         Update: {
           id?: string
-          room_id?: string
-          student_id?: string
-          time_in?: string
-          time_out?: string | null
-          events?: string[] | null
-          fines?: number | null
+          full_name?: string | null
+          student_id?: string | null
+          face_registered?: boolean
+          face_embedding?: any | null
+          face_image?: string | null
+          role?: 'admin' | 'student'
           created_at?: string
         }
       }
       rooms: {
         Row: {
           id: string
+          admin_id: string
           name: string
           code: string
-          admin_id: string
-          event_name: string | null
-          event_date: string | null
-          event_type: string | null
-          start_time: string | null
-          end_time: string | null
-          start_time_am: string | null
-          end_time_am: string | null
-          start_time_pm: string | null
-          end_time_pm: string | null
+          created_at: string
           am_time_in_start: string | null
           am_time_in_end: string | null
           am_time_out_start: string | null
@@ -66,23 +58,13 @@ export interface Database {
           pm_time_out_end: string | null
           am_fine_amount: number | null
           pm_fine_amount: number | null
-          is_active: boolean | null
-          created_at: string
         }
         Insert: {
           id?: string
+          admin_id: string
           name: string
           code: string
-          admin_id: string
-          event_name?: string | null
-          event_date?: string | null
-          event_type?: string | null
-          start_time?: string | null
-          end_time?: string | null
-          start_time_am?: string | null
-          end_time_am?: string | null
-          start_time_pm?: string | null
-          end_time_pm?: string | null
+          created_at?: string
           am_time_in_start?: string | null
           am_time_in_end?: string | null
           am_time_out_start?: string | null
@@ -93,24 +75,13 @@ export interface Database {
           pm_time_out_end?: string | null
           am_fine_amount?: number | null
           pm_fine_amount?: number | null
-          is_active?: boolean | null
-          created_at?: string
         }
         Update: {
           id?: string
+          admin_id?: string
           name?: string
           code?: string
-          admin_id?: string
-          event_name?: string | null
-          event_date?: string | null
-          event_type?: string | null
-          start_time?: string | null
-          end_time?: string | null
-          start_time_am?: string | null
-          end_time_am?: string | null
-          start_time_pm?: string | null
-          end_time_pm?: string | null
-          is_active?: boolean | null
+          created_at?: string
           am_time_in_start?: string | null
           am_time_in_end?: string | null
           am_time_out_start?: string | null
@@ -121,64 +92,75 @@ export interface Database {
           pm_time_out_end?: string | null
           am_fine_amount?: number | null
           pm_fine_amount?: number | null
-          created_at?: string
         }
       }
-      room_participants: {
+      attendance: {
         Row: {
           id: string
           room_id: string
           student_id: string
-          is_approved: boolean
-          joined_at: string
+          time_in: string | null
+          time_out: string | null
+          session: string | null
+          events: string[] | null
+          fines: number | null
+          created_at: string
         }
         Insert: {
           id?: string
           room_id: string
           student_id: string
-          is_approved?: boolean
-          joined_at?: string
+          time_in?: string | null
+          time_out?: string | null
+          session?: string | null
+          events?: string[] | null
+          fines?: number | null
+          created_at?: string
         }
         Update: {
           id?: string
           room_id?: string
           student_id?: string
-          is_approved?: boolean
-          joined_at?: string
+          time_in?: string | null
+          time_out?: string | null
+          session?: string | null
+          events?: string[] | null
+          fines?: number | null
+          created_at?: string
         }
       }
-      profiles: {
+      room_participants: {
         Row: {
-          id: string
-          full_name: string | null
-          student_id: string | null
-          course_year: string | null
-          face_embedding: number[] | null
-          face_image: string | null
-          last_room_id: string | null
-          created_at: string
+          room_id: string
+          student_id: string
+          joined_at: string
+          is_approved: boolean
         }
         Insert: {
-          id: string
-          full_name?: string | null
-          student_id?: string | null
-          course_year?: string | null
-          face_embedding?: number[] | null
-          face_image?: string | null
-          last_room_id?: string | null
-          created_at?: string
+          room_id: string
+          student_id: string
+          joined_at?: string
+          is_approved?: boolean
         }
         Update: {
-          id?: string
-          full_name?: string | null
-          student_id?: string | null
-          course_year?: string | null
-          face_embedding?: number[] | null
-          face_image?: string | null
-          last_room_id?: string | null
-          created_at?: string
+          room_id?: string
+          student_id?: string
+          joined_at?: string
+          is_approved?: boolean
         }
       }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      user_role: 'admin' | 'student'
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
