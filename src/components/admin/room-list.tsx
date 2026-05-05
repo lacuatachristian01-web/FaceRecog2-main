@@ -229,29 +229,6 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
     }
   };
 
-  const handleManualTimeIn = async (studentId: string, studentName: string) => {
-    if (!selectedRoom) return;
-    try {
-      await timeIn(selectedRoom, studentId);
-      toast.success(`Manual Time In: ${studentName}`);
-      const newStatus = await getTodayStatus(selectedRoom, studentId);
-      setParticipantStatuses(prev => ({ ...prev, [studentId]: newStatus }));
-    } catch (err: any) {
-      toast.error(err.message || "Manual Time In failed");
-    }
-  };
-
-  const handleManualTimeOut = async (studentId: string, studentName: string) => {
-    if (!selectedRoom) return;
-    try {
-      await timeOut(selectedRoom, studentId);
-      toast.success(`Manual Time Out: ${studentName}`);
-      const newStatus = await getTodayStatus(selectedRoom, studentId);
-      setParticipantStatuses(prev => ({ ...prev, [studentId]: newStatus }));
-    } catch (err: any) {
-      toast.error(err.message || "Manual Time Out failed");
-    }
-  };
 
   const handleRemoveStudent = async (roomId: string, studentId: string) => {
     if (!confirm("Remove this student from the room?")) return;
@@ -871,24 +848,10 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
                               participantStatuses[p.profiles.id]?.time_out ? (
                                 <Badge variant="outline" className="bg-muted text-muted-foreground text-[7px] uppercase font-black px-2 py-0">Completed</Badge>
                               ) : (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  className="h-7 text-[8px] font-black uppercase tracking-widest border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-lg px-3"
-                                  onClick={() => handleManualTimeOut(p.profiles.id, p.profiles.full_name)}
-                                >
-                                  Clock Out
-                                </Button>
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[7px] uppercase font-black px-2 py-0">Timed In</Badge>
                               )
                             ) : (
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="h-7 text-[8px] font-black uppercase tracking-widest border-primary/30 text-primary hover:bg-primary hover:text-white rounded-lg px-3"
-                                onClick={() => handleManualTimeIn(p.profiles.id, p.profiles.full_name)}
-                              >
-                                Clock In
-                              </Button>
+                              <Badge variant="outline" className="bg-secondary/50 text-muted-foreground/60 text-[7px] uppercase font-black px-2 py-0">Not Yet Timed In</Badge>
                             )}
                           </div>
                         )}
