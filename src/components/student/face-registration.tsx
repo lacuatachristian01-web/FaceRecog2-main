@@ -117,112 +117,31 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     let interval: any;
     if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
       interval = setInterval(async () => {
-        if (!videoRef.current || videoRef.current.readyState < 2) return;
-        
         const video = videoRef.current;
         const detection = await faceapi
           .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
-            inputSize: 320, // Better balance for finding faces
-            scoreThreshold: 0.15 // Very sensitive to low-light/distant faces
+            inputSize: 256, // Faster detection
+            scoreThreshold: 0.1 // Maximum sensitivity
           }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
         if (detection) {
           setFaceDetected(true);
+          setIsCorrectPosture(true);
+          setGuideMessage("CAPTURING...");
+          setAutoCaptureProgress(100);
           
-          const { x, y, width, height } = detection.detection.box;
-          const videoWidth = video.videoWidth;
-          const videoHeight = video.videoHeight;
-          const centerX = x + width / 2;
-          const centerY = y + height / 2;
-          
-          const isCenteredX = Math.abs(centerX - videoWidth / 2) < videoWidth * 0.10; // Tightened for accuracy
-          const isCenteredY = Math.abs(centerY - videoHeight / 2) < videoHeight * 0.10; // Tightened for accuracy
-          
-          // Accuracy Enhancement: Check Face Size relative to frame (approx 35-65% is ideal)
-          const faceScale = detection.detection.box.width / videoWidth;
-          const isCorrectSize = faceScale > 0.35 && faceScale < 0.65;
-          
-          const isCorrectPosition = isCenteredX && isCenteredY && isCorrectSize;
-          
-          const landmarks = detection.landmarks;
-          const nose = landmarks.getNose();
-          const mouth = landmarks.getMouth();
-          const leftEye = landmarks.getLeftEye();
-          const rightEye = landmarks.getRightEye();
-          const leftEyebrow = landmarks.getLeftEyeBrow();
-
-          // Precision Check: Face Leveling (Eyes must be aligned horizontally)
-          const eyeDeltaY = Math.abs(leftEye[0].y - rightEye[0].y);
-          const isLeveled = eyeDeltaY < (detection.detection.box.height * 0.05); // Increased from 0.02 for easier leveling
-
-          // Precision Check: Head Rotation (Yaw)
-          const distToLeftEye = Math.abs(nose[0].x - leftEye[0].x);
-          const distToRightEye = Math.abs(nose[0].x - rightEye[0].x);
-          const isLookingStraight = Math.abs(distToLeftEye - distToRightEye) < (distToLeftEye * 0.25);
-
-          // Security Check: Specific Accessory Detection
-          const mouthWidth = Math.abs(mouth[6].x - mouth[0].x);
-          const mouthHeight = Math.abs(mouth[9].y - mouth[3].y);
-          const isMaskSuspected = mouthHeight < 1 || (detection.detection.score < 0.88 && mouthHeight < 3);
-          const eyeToTopDist = Math.abs(leftEyebrow[0].y - detection.detection.box.y);
-          const isCapSuspected = eyeToTopDist < (detection.detection.box.height * 0.10);
-          const isGlassesSuspected = detection.detection.score > 0.85 && detection.detection.score <= 0.87 && !isMaskSuspected && !isCapSuspected; // Narrowed to reduce false positives
-
-          const isHighConfidence = detection.detection.score > 0.91;
-          
-          if (isCenteredX && isCenteredY) {
-            // Priority: Only Specific Accessory Warnings as requested
-            if (isMaskSuspected) {
-              setIsCorrectPosture(false);
-              setGuideMessage("REMOVE YOUR MASK");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
-              return;
-            }
-            if (isCapSuspected) {
-              setIsCorrectPosture(false);
-              setGuideMessage("REMOVE YOUR CAP");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
-              return;
-            }
-            if (isGlassesSuspected) {
-              setIsCorrectPosture(false);
-              setGuideMessage("REMOVE YOUR EYEGLASSES/SUNGLASSES");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 10));
-              return;
-            }
-
-            if (!isHighConfidence) {
-              setIsCorrectPosture(false);
-              setGuideMessage("FACE OBSCURED - CLEAR FACE");
-              setAutoCaptureProgress(prev => Math.max(0, prev - 5));
-              return;
-            }
-
-            setIsCorrectPosture(true);
-            setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
-            
-            setAutoCaptureProgress(prev => {
-              const next = prev + 25; 
-              if (next >= 100) {
-                setTimeout(() => {
-                  clearInterval(interval);
-                  handleAutoCapture(detection);
-                }, 0);
-                return 100;
-              }
-              return next;
-            });
-          } else {
-            setIsCorrectPosture(false);
-            setGuideMessage(faceScale < 0.35 ? "MOVE CLOSER" : "ADJUST POSITION");
-            setAutoCaptureProgress(prev => Math.max(0, prev - 10));
-          }
+          // Instant handover to capture
+          setTimeout(() => {
+            clearInterval(interval);
+            handleAutoCapture(detection);
+          }, 0);
         } else {
+          setFaceDetected(false);
           setIsCorrectPosture(false);
-          setGuideMessage("Finding face...");
-          setAutoCaptureProgress(prev => Math.max(0, prev - 15));
+          setGuideMessage("Scanning...");
+          setAutoCaptureProgress(0);
         }
       }, 80); // Balanced interval for CPU reliability
     }
