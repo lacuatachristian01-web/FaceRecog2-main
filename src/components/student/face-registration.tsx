@@ -128,7 +128,8 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           setIsCorrectPosture(true);
           
           setAutoCaptureProgress(prev => {
-            const next = prev + 1.8; // Approx 3 seconds at 50ms interval (60 frames)
+            if (prev >= 100) return 100; // Already triggered
+            const next = prev + 1.8; 
             if (next >= 100) {
               setTimeout(() => {
                 clearInterval(interval);
