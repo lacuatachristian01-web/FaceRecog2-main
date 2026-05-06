@@ -59,7 +59,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const detectionStartTime = useRef<number | null>(null);
   const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
   const [scanningStage, setScanningStage] = useState<'capturing' | 'analyzing' | 'matching' | 'recording' | null>(null);
-  const AUTO_TRIGGER_DELAY = 2000; // Increased to 2 seconds as requested
+  const AUTO_TRIGGER_DELAY = 0; // Instant capture so student can leave immediately
 
   useEffect(() => {
     if (roomId && userId) {
