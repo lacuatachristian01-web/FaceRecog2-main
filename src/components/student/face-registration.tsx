@@ -450,6 +450,17 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                     <span>{registrationType === 'biometric' ? "Start Enrollment" : "Take Photo"}</span>
                   </div>
                 </Button>
+
+                <Button
+                  onClick={() => {
+                    stopVideo();
+                    router.push('/login');
+                  }}
+                  variant="outline"
+                  className="w-full h-16 rounded-2xl bg-white/5 border-white/10 hover:bg-white/10 text-zinc-400 hover:text-white font-black text-lg transition-all"
+                >
+                  <span>Back to Login</span>
+                </Button>
                 
                 {registrationType === 'simple' && (
                   <Button 
