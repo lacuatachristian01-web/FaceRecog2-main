@@ -72,7 +72,7 @@ export async function getAllStudents() {
       .eq('role', 'student')
       .order('full_name', { ascending: true });
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data || [];
   } catch (err) {
     console.error("Failed to fetch students:", err);
@@ -89,7 +89,7 @@ export async function updateStudentProfile(studentId: string, updates: any) {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 

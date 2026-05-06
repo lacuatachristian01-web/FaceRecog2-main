@@ -42,7 +42,7 @@ export async function getProfile() {
     .eq('id', user.id)
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return profile;
 }
 
@@ -66,7 +66,7 @@ export async function updateProfile(updates: {
     .select()
     .single();
     
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 

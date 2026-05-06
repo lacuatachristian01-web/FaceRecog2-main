@@ -176,7 +176,7 @@ export async function getAdminRooms() {
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data || [];
 }
 
@@ -191,7 +191,7 @@ export async function getStudentRooms() {
     .eq('student_id', user.id)
     .eq('is_approved', true);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data.map(d => d.rooms) || [];
 }
 export async function deleteRoom(roomId: string) {
@@ -201,7 +201,7 @@ export async function deleteRoom(roomId: string) {
     .delete()
     .eq('id', roomId);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   revalidatePath('/dashboard');
   return { success: true };
 }
@@ -216,7 +216,7 @@ export async function updateRoom(roomId: string, updates: Partial<Room>) {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 
@@ -228,7 +228,7 @@ export async function removeStudentFromRoom(roomId: string, studentId: string) {
     .eq('room_id', roomId)
     .eq('student_id', studentId);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 
@@ -240,7 +240,21 @@ export async function approveStudent(roomId: string, studentId: string) {
     .eq('room_id', roomId)
     .eq('student_id', studentId);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function enrollStudentInRoom(roomId: string, studentId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('room_participants')
+    .upsert({
+      room_id: roomId,
+      student_id: studentId,
+      is_approved: true
+    }, { onConflict: 'room_id, student_id' });
+
+  if (error && !error.message.includes('duplicate')) throw new Error(error.message);
   return { success: true };
 }
 
@@ -260,7 +274,7 @@ export async function getRoomParticipants(roomId: string) {
     `)
     .eq('room_id', roomId);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 

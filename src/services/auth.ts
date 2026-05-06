@@ -82,7 +82,7 @@ export async function signUpWithID(
 export async function signOut() {
   const client = await createClient();
   const { error } = await client.auth.signOut();
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 
@@ -93,7 +93,7 @@ export async function forgotPassword(email: string) {
   const { error } = await client.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/reset-password`,
   });
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 
@@ -102,7 +102,7 @@ export async function resetPassword(password: string) {
   const { error } = await client.auth.updateUser({
     password: password,
   });
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 
@@ -130,6 +130,6 @@ export async function updatePassword(password: string, currentPassword?: string)
     password: password,
   });
   
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }

@@ -188,7 +188,7 @@ export async function getAdminDashboard(roomId: string) {
     .eq('room_id', roomId)
     .order('time_in', { ascending: false });
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 
@@ -203,7 +203,7 @@ export async function getStudentAttendance(studentId: string) {
     .eq('student_id', studentId)
     .order('time_in', { ascending: false });
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 export async function getTodayStatus(roomId: string, studentId: string, sessionOverride?: 'AM' | 'PM') {
@@ -285,7 +285,7 @@ export async function deleteAttendanceRecord(id: string) {
     .delete()
     .eq('id', id);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 
@@ -298,7 +298,7 @@ export async function updateAttendanceRecord(id: string, updates: Partial<Attend
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 export async function checkApproval(roomId: string, studentId: string) {
@@ -363,7 +363,7 @@ export async function getRoomParticipantsWithFaces(roomId: string) {
     .eq('room_id', roomId)
     .eq('is_approved', true);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   
   return (data as any[] || [])
     .map(d => d.profiles)
@@ -376,7 +376,7 @@ export async function getAllRegisteredFaces() {
     .select('id, full_name, face_embedding, face_image')
     .not('face_embedding', 'is', null);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data || [];
 }
 export async function getStudentFinesSummary(studentId: string) {

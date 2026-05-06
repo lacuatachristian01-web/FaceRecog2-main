@@ -66,7 +66,7 @@ export async function getFaceEmbedding(userId: string) {
     .eq('id', userId)
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return {
     embedding: data?.face_embedding,
     image: data?.face_image
@@ -90,7 +90,7 @@ export async function updateProfileImage(userId: string, faceImage: string) {
     .update({ face_image: faceImage })
     .eq('id', userId);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { success: true };
 }
 

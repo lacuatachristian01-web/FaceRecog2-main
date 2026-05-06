@@ -11,6 +11,7 @@ import { getFaceEmbedding, updateProfileImage, matchFace } from "@/services/face
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { enrollStudentInRoom } from "@/services/room";
 import { JoinRoom } from "../student/join-room";
 
 interface AttendanceTerminalProps {
@@ -459,15 +460,16 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           setCapturedImage(canvas.toDataURL("image/jpeg", 0.9));
         }
       }
-      // 1. Enrollment check
+      // 1. Auto-Enrollment check
       const isEnrolled = allParticipants.some(p => p.id === sId);
       if (!isEnrolled) {
-        const msg = `${sName} is not enrolled in this room.`;
-        setWarningMessage(msg);
-        toast.error(msg, { id: `not-enrolled-${sId}` });
-        setStatus('error');
-        setActionMessage("Not Enrolled");
-        return;
+        try {
+          await enrollStudentInRoom(roomId, sId);
+          setAllParticipants(prev => [...prev, { id: sId, full_name: sName }]);
+          toast.success(`${sName} was automatically enrolled in this room.`);
+        } catch (enrollErr) {
+          console.warn("Auto-enroll failed:", enrollErr);
+        }
       }
 
       // 2. Status check
