@@ -117,11 +117,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   const isRegisteringRef = useRef(false);
   isRegisteringRef.current = isRegistering;
 
+  const intervalRef = useRef<any>(null);
+
   // 2. Real-time Detection Loop (ONLY for biometric mode)
   useEffect(() => {
-    let interval: any;
     if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
-      interval = setInterval(async () => {
+      intervalRef.current = setInterval(async () => {
         const video = videoRef.current;
         if (!video || video.readyState < 2 || isRegisteringRef.current) return;
 
@@ -138,7 +139,10 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
             setGuideMessage(next > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
             if (next >= 100) {
               // TERMINATE INTERVAL IMMEDIATELY
-              if (interval) clearInterval(interval);
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+              }
               if (handleAutoCaptureRef.current) {
                 handleAutoCaptureRef.current(detection);
               }
@@ -154,7 +158,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
         }
       }, 50); // Faster polling
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [isStreaming, isModelLoaded, step, registrationType]);
 
   const handleCapture = async () => {
@@ -254,6 +263,10 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleRetake = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     setIsRegistering(false);
     setCapturedImage(null);
     setDescriptor(null);
