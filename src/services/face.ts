@@ -22,7 +22,7 @@ export async function registerFace(embedding: number[], faceImage: string) {
 
     // 1. Check for duplication via high-speed pgvector matchFace RPC
     if (embedding && embedding.length > 0) {
-      const matchResult = await matchFace(embedding, 0.60); // strict 0.40 distance threshold
+      const matchResult = await matchFace(embedding, 0.25); // strict 0.75 similarity threshold
       
       if (matchResult.error) {
         console.error("Duplication check matchFace error:", matchResult.error);
