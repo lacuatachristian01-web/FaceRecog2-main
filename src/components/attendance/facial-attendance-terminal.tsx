@@ -64,16 +64,32 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [matchedStudent, setMatchedStudent] = useState<any>(null);
   const allParticipantsRef = useRef<any[]>([]);
   const [allParticipants, _setAllParticipants] = useState<any[]>([]);
-  const setAllParticipants = (val: any[]) => {
-    allParticipantsRef.current = val;
-    _setAllParticipants(val);
+  const setAllParticipants = (val: any[] | ((prev: any[]) => any[])) => {
+    if (typeof val === 'function') {
+      _setAllParticipants(prev => {
+        const updated = val(prev);
+        allParticipantsRef.current = updated;
+        return updated;
+      });
+    } else {
+      allParticipantsRef.current = val;
+      _setAllParticipants(val);
+    }
   };
 
   const allRegisteredStudentsRef = useRef<any[]>([]);
   const [allRegisteredStudents, _setAllRegisteredStudents] = useState<any[]>([]);
-  const setAllRegisteredStudents = (val: any[]) => {
-    allRegisteredStudentsRef.current = val;
-    _setAllRegisteredStudents(val);
+  const setAllRegisteredStudents = (val: any[] | ((prev: any[]) => any[])) => {
+    if (typeof val === 'function') {
+      _setAllRegisteredStudents(prev => {
+        const updated = val(prev);
+        allRegisteredStudentsRef.current = updated;
+        return updated;
+      });
+    } else {
+      allRegisteredStudentsRef.current = val;
+      _setAllRegisteredStudents(val);
+    }
   };
   const [currentUserEmbedding, setCurrentUserEmbedding] = useState<any>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
