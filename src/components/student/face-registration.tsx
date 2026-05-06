@@ -112,13 +112,19 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
     setIsStreaming(false);
   };
 
+  const handleAutoCaptureRef = useRef<((detection: any) => Promise<void>) | null>(null);
+  handleAutoCaptureRef.current = handleAutoCapture;
+
+  const isRegisteringRef = useRef(false);
+  isRegisteringRef.current = isRegistering;
+
   // 2. Real-time Detection Loop (ONLY for biometric mode)
   useEffect(() => {
     let interval: any;
     if (registrationType === 'biometric' && isStreaming && isModelLoaded && step === "scanning") {
       interval = setInterval(async () => {
         const video = videoRef.current;
-        if (!video || video.readyState < 2 || isRegistering) return;
+        if (!video || video.readyState < 2 || isRegisteringRef.current) return;
 
         // RAW SPEED: Minimal options for instant detection
         const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
@@ -130,15 +136,17 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
           setAutoCaptureProgress(prev => {
             if (prev >= 100) return 100; // Lock to 100
             const next = prev + 1.8; 
+            setGuideMessage(next > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
             if (next >= 100) {
               // TERMINATE INTERVAL IMMEDIATELY
               if (interval) clearInterval(interval);
-              handleAutoCapture(detection);
+              if (handleAutoCaptureRef.current) {
+                handleAutoCaptureRef.current(detection);
+              }
               return 100;
             }
             return next;
           });
-          setGuideMessage(autoCaptureProgress > 50 ? "HOLD STILL..." : "FACE DETECTED - STAY STILL");
         } else {
           setFaceDetected(false);
           setIsCorrectPosture(false);
