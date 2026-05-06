@@ -223,20 +223,22 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                 }
 
                 // Check for "Right Position" (Centering)
-                const video = videoRef.current;
+                const currentVideo = videoRef.current;
+                if (!currentVideo) return;
+                
                 const box = (detection as any).detection.box;
                 const faceCenter = {
                   x: box.x + box.width / 2,
                   y: box.y + box.height / 2
                 };
                 const videoCenter = {
-                  x: video.videoWidth / 2,
-                  y: video.videoHeight / 2
+                  x: currentVideo.videoWidth / 2,
+                  y: currentVideo.videoHeight / 2
                 };
                 
                 // Allow a 25% margin of error for "Right Position"
-                const toleranceX = video.videoWidth * 0.15;
-                const toleranceY = video.videoHeight * 0.15;
+                const toleranceX = currentVideo.videoWidth * 0.15;
+                const toleranceY = currentVideo.videoHeight * 0.15;
                 const isCentered = 
                   Math.abs(faceCenter.x - videoCenter.x) < toleranceX &&
                   Math.abs(faceCenter.y - videoCenter.y) < toleranceY;
@@ -257,7 +259,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                     setTimeout(() => setShowFlash(false), 150);
                     
                     // Trigger capture and perform the scanning on the photo
-                    processCapturedAttendance(video);
+                    processCapturedAttendance(currentVideo);
                   }
                   
                   setMatchedStudent(bestMatch && minDistance < 0.6 ? bestMatch : { full_name: "Hold Still..." });
