@@ -494,37 +494,17 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       
       // If enforcing Time In but already timed in
       if (type === 'in' && sStatus) {
-        toast.info(`${sName}, you already Time In for ${currentSession}.`, {
-          id: `already-in-${sId}`
-        });
-        setCapturedImage(null);
-        return;
+        throw new Error(`${sName}, you already Time In for ${currentSession}.`);
       }
       
       // If enforcing Time Out but already timed out
       if (type === 'out' && sStatus?.time_out) {
-        toast.info(`${sName}, you already Time Out for ${currentSession}.`, {
-          id: `already-out-${sId}`
-        });
-        setCapturedImage(null);
-        return;
+        throw new Error(`${sName}, you already Time Out for ${currentSession}.`);
       }
       
       // If enforcing Time Out but hasn't timed in yet
       if (type === 'out' && !sStatus) {
-        toast.error(`${sName}, you cannot Time Out without Timing In first!`, {
-          id: `no-timein-${sId}`
-        });
-        setCapturedImage(null);
-        return;
-      }
-      
-      if (type === 'out' && sStatus?.time_out) {
-        toast.info(`${sName} has already completed today's session.`, {
-          id: `session-done-${sId}`
-        });
-        setCapturedImage(null);
-        return;
+        throw new Error(`${sName}, you cannot Time Out without Timing In first!`);
       }
 
       // 3. Optional Photo Capture (if missing)
