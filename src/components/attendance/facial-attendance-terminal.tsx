@@ -431,6 +431,14 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       if (bestMatch) {
         setScanningStage('recording');
         if (isGlobal) {
+          // Strict Room Scanning: Verify if the scanned student is actually registered/enrolled in this selected room
+          const isEnrolled = allParticipants.some(p => p.id === bestMatch.id);
+          if (!isEnrolled) {
+            toast.error(`Not Successfully Time In: ${bestMatch.full_name} is not registered in this room.`);
+            setIsProcessing(false);
+            setCapturedImage(null);
+            return;
+          }
           await processGlobalAttendance(bestMatch.id, bestMatch.full_name, bestMatch.face_image ? null : 'PENDING');
         } else {
           // If in room mode, verify the match is actually the intended user
