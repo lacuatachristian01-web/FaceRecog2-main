@@ -92,14 +92,23 @@ export async function timeIn(roomId: string, studentId: string, sessionOverride?
 
     if (existing) return { error: `Already timed in for ${activeSession} session` };
 
-    const events: string[] = [];
+    if (targetInStart) {
+      const [h, m] = targetInStart.split(':').map(Number);
+      const startLimit = h * 60 + m;
+      if (currentMinutes < startLimit) {
+        return { error: `Time In has not started yet. Starts at ${targetInStart}.` };
+      }
+    }
+
     if (targetInEnd) {
       const [h, m] = targetInEnd.split(':').map(Number);
       const deadline = h * 60 + m;
       if (currentMinutes > deadline) {
-        events.push('Late');
+        return { error: `Time In window has ended. Cutoff was ${targetInEnd}.` };
       }
     }
+
+    const events: string[] = [];
 
     const fineAmount = activeSession === 'AM' ? (room.am_fine_amount || 50) : (room.pm_fine_amount || 50);
     const fine = events.includes('Late') ? fineAmount : 0;
@@ -136,7 +145,7 @@ export async function timeOut(roomId: string, studentId: string) {
     
     const { data: session, error: findError } = await supabase
       .from('attendance')
-      .select('id')
+      .select('id, session')
       .eq('room_id', roomId)
       .eq('student_id', studentId)
       .is('time_out', null)
@@ -145,6 +154,38 @@ export async function timeOut(roomId: string, studentId: string) {
       .maybeSingle();
 
     if (findError || !session) return { error: 'No active session found to time out' };
+
+    // Fetch room details for Time Out windows
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('id', roomId)
+      .single();
+
+    if (!room) return { error: 'Room not found' };
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const activeSession = session.session || (currentMinutes < 720 ? 'AM' : 'PM');
+
+    const targetOutStart = activeSession === 'AM' ? room.am_time_out_start : room.pm_time_out_start;
+    const targetOutEnd = activeSession === 'AM' ? room.am_time_out_end : room.pm_time_out_end;
+
+    if (targetOutStart) {
+      const [h, m] = targetOutStart.split(':').map(Number);
+      const startLimit = h * 60 + m;
+      if (currentMinutes < startLimit) {
+        return { error: `Time Out has not started yet. Starts at ${targetOutStart}.` };
+      }
+    }
+
+    if (targetOutEnd) {
+      const [h, m] = targetOutEnd.split(':').map(Number);
+      const endLimit = h * 60 + m;
+      if (currentMinutes > endLimit) {
+        return { error: `Time Out window has closed. Ended at ${targetOutEnd}.` };
+      }
+    }
 
     const { data, error } = await supabase
       .from('attendance')
