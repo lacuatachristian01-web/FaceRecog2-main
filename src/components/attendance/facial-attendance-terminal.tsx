@@ -819,24 +819,66 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                       <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-[3rem] opacity-40" />
                     </div>
 
-                    {/* Inner Pulse Circle & Progress Percent */}
-                    {faceDetected && (
+                    {/* Glowing Progress Circle (Matches registration page) */}
+                    {autoTriggerProgress > 0 && (
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none z-30">
+                        <rect
+                          x="10"
+                          y="10"
+                          width="300"
+                          height="300"
+                          rx="48"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          className="text-white/5"
+                        />
+                        <motion.rect
+                          x="10"
+                          y="10"
+                          width="300"
+                          height="300"
+                          rx="48"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray="1200"
+                          initial={{ strokeDashoffset: 1200 }}
+                          animate={{ 
+                            strokeDashoffset: 1200 - (1200 * (autoTriggerProgress / 100)),
+                            color: autoTriggerProgress > 80 ? "#10b981" : "#3b82f6",
+                          }}
+                          strokeLinecap="round"
+                          transition={{ duration: 0.1, ease: "linear" }}
+                        />
+                      </svg>
+                    )}
+
+                    {/* High-Visibility Center Percentage Indicator */}
+                    {autoTriggerProgress > 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-black/80 backdrop-blur-md px-6 py-4 rounded-3xl border border-primary/30 shadow-2xl flex flex-col items-center justify-center min-w-[120px]"
+                        >
+                          <span className="text-4xl font-black text-primary leading-none italic animate-pulse">
+                            {Math.round(autoTriggerProgress)}%
+                          </span>
+                          <span className="text-[8px] font-bold text-white/60 uppercase tracking-widest mt-1">
+                            HOLD STILL
+                          </span>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Faint Inner Pulse Circle (purely decorative) */}
+                    {faceDetected && autoTriggerProgress === 0 && (
                       <motion.div 
                         animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
                         transition={{ duration: 2, repeat: Infinity }}
                         className="absolute inset-10 border border-primary/30 rounded-[3rem] flex items-center justify-center"
-                      >
-                        {autoTriggerProgress > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="text-6xl font-black text-primary/40 italic flex flex-col items-center"
-                          >
-                            <span className="leading-none">{Math.round(autoTriggerProgress)}</span>
-                            <span className="text-xl tracking-[0.5em] ml-2">%</span>
-                          </motion.div>
-                        )}
-                      </motion.div>
+                      />
                     )}
 
                     {/* Identification Label */}
