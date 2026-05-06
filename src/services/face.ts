@@ -35,7 +35,7 @@ export async function registerFace(embedding: number[], faceImage: string) {
       if (duplicateCheck && Array.isArray(duplicateCheck) && duplicateCheck.length > 0) {
         const { match_found, matched_name } = duplicateCheck[0];
         if (match_found) {
-          return { error: `SECURITY ALERT: This face is already registered to ${matched_name}.` };
+          return { error: "This Face is Already Registered in other User!" };
         }
       }
     }
