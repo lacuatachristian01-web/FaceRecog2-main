@@ -260,7 +260,9 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                     setTimeout(() => setShowFlash(false), 150);
                     
                     // Trigger capture and perform the scanning on the photo
-                    processCapturedAttendance(currentVideo);
+                    if (processCapturedAttendanceRef.current) {
+                      processCapturedAttendanceRef.current(currentVideo);
+                    }
                   }
                   
                   setMatchedStudent(bestMatch && minDistance < 0.6 ? bestMatch : { full_name: "Hold Still..." });
@@ -375,6 +377,8 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     }
   };
 
+  const processCapturedAttendanceRef = useRef<((video: HTMLVideoElement) => Promise<void>) | null>(null);
+  
   const processCapturedAttendance = async (video: HTMLVideoElement) => {
     try {
       setScanningStage('analyzing');
@@ -447,6 +451,10 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setScanningStage(null);
     }
   };
+
+  useEffect(() => {
+    processCapturedAttendanceRef.current = processCapturedAttendance;
+  }, [processCapturedAttendance]);
 
   const processGlobalAttendance = async (sId: string, sName: string, photoStatus?: string | null) => {
     try {
