@@ -20,19 +20,16 @@ export async function registerFace(embedding: number[], faceImage: string) {
       return { error: 'Not authenticated' };
     }
 
-    // 1. Check for duplication via RPC
+    // 1. Check for duplication via high-speed pgvector matchFace RPC
     if (embedding && embedding.length > 0) {
-      const { data: duplicateCheck, error: rpcError } = await supabase.rpc('check_face_duplicate', {
-        target_embedding: embedding,
-        current_user_id: user.id,
-        threshold: 0.45
-      });
-
-      if (rpcError) {
-        console.warn("Face duplication check was bypassed because the RPC 'check_face_duplicate' is not installed in Supabase yet. Run the SQL migration to enable this security layer.", rpcError.message);
-      } else if (duplicateCheck && Array.isArray(duplicateCheck) && duplicateCheck.length > 0) {
-        const { match_found, matched_name } = duplicateCheck[0];
-        if (match_found) {
+      const matchResult = await matchFace(embedding, 0.45); // threshold 0.45 distance
+      
+      if (matchResult.error) {
+        console.error("Duplication check matchFace error:", matchResult.error);
+      } else if (matchResult.data) {
+        const bestMatch = matchResult.data;
+        // If the matched user is NOT the current registering user, it's a DUPLICATE!
+        if (bestMatch.id !== user.id) {
           return { error: "This Face is Already Registered in other User!" };
         }
       }
