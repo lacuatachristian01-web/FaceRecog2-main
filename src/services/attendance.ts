@@ -441,7 +441,7 @@ export async function getStudentFinesSummary(studentId: string) {
     .from('attendance')
     .select(`
       *,
-      rooms (name, event_name, event_date)
+      rooms (name, event_name, event_date, am_fine_amount, pm_fine_amount)
     `)
     .eq('student_id', studentId);
 
@@ -456,7 +456,8 @@ export async function getStudentFinesSummary(studentId: string) {
     const rawEventName = a.rooms?.event_name || a.rooms?.name || "Regular Session";
     const isHalfDay = !a.time_out;
     const eventName = isHalfDay ? `${rawEventName} (Half Day)` : rawEventName;
-    const calculatedFines = isHalfDay ? (a.fines ? a.fines / 2 : 0) : (a.fines || 0);
+    const roomFine = a.rooms?.am_fine_amount || a.rooms?.pm_fine_amount || 50;
+    const calculatedFines = isHalfDay ? (Math.max(a.fines || 0, roomFine) / 2) : (a.fines || 0);
 
     return {
       id: a.id,
