@@ -98,7 +98,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
   const [scanningStage, setScanningStage] = useState<'capturing' | 'analyzing' | 'matching' | 'recording' | null>(null);
   const [attendanceMode, setAttendanceMode] = useState<'auto' | 'in' | 'out'>('auto');
-  const AUTO_TRIGGER_DELAY = 2000; // Increased to 2 seconds as requested
+  const AUTO_TRIGGER_DELAY = 800; // Reduced to 800ms for near-instant capture and blazing speed
 
   useEffect(() => {
     if (roomId && userId) {
@@ -412,22 +412,22 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       toast.success(type === 'in' ? "Time In recorded" : "Time Out recorded");
       fetchStatus();
       
-      // Auto-reset after success
+      // Auto-reset after success (faster 2-second throughput)
       setTimeout(() => {
         setStatus('idle');
         setMatchedStudent(null);
-      }, 4000);
+      }, 2000);
     } catch (err: any) {
       const errMsg = err.message || "Not Successfully Time In";
       toast.error(errMsg);
       setWarningMessage(errMsg);
       setStatus('error');
-      // Auto-reset after error so the terminal doesn't lock up
+      // Auto-reset after error so the terminal doesn't lock up (faster 2-second reset)
       setTimeout(() => {
         setStatus('idle');
         setWarningMessage(null);
         setMatchedStudent(null);
-      }, 4000);
+      }, 2000);
     } finally {
       setIsProcessing(false);
     }
@@ -610,25 +610,25 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setStatus('success');
       toast.success(`${type === 'in' ? "Time In Successfully" : "Time Out Successfully"}: ${sName}`);
       
-      // Auto-reset after success for global mode
+      // Auto-reset after success for global mode (faster 2-second throughput)
       setTimeout(() => {
         setStatus('idle');
         setMatchedStudent(null);
         setCapturedImage(null);
-      }, 4000);
+      }, 2000);
     } catch (err: any) {
       const errMsg = err.message || "Not Successfully Time In";
       toast.error(errMsg);
       setWarningMessage(errMsg);
       setStatus('error');
       
-      // Auto-reset after error so the terminal doesn't lock up
+      // Auto-reset after error so the terminal doesn't lock up (faster 2-second reset)
       setTimeout(() => {
         setStatus('idle');
         setWarningMessage(null);
         setMatchedStudent(null);
         setCapturedImage(null);
-      }, 4000);
+      }, 2000);
     } finally {
       setIsProcessing(false);
     }
