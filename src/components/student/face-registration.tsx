@@ -267,6 +267,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    stopVideo();
     setIsRegistering(false);
     setCapturedImage(null);
     setDescriptor(null);
@@ -292,6 +293,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       }
 
       setStep("success");
+      stopVideo();
       toast.success("Profile updated successfully!");
       router.refresh();
       if (onSuccess) {
