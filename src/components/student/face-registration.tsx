@@ -276,7 +276,12 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
         setTimeout(() => onSuccess(), 2000);
       }
     } catch (err: any) {
-      console.error("Registration Error Details (Full):", JSON.stringify(err, null, 2));
+      console.error("Registration Error Details (Full):", {
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack,
+        original: err
+      });
       const errorMessage = err?.message || "Failed to update profile";
       toast.error(errorMessage);
       setHasFailedRegistration(true);
