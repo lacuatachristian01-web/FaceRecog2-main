@@ -343,6 +343,16 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     if (isStreaming && stream && videoRef.current) {
       videoRef.current.srcObject = stream;
     }
+    
+    // Cleanup: Release and stop the camera tracks when the component unmounts or navigates away
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log("Webcam track stopped cleanly during cleanup");
+        });
+      }
+    };
   }, [isStreaming, stream]);
 
   const processAttendance = async (type: 'in' | 'out') => {
