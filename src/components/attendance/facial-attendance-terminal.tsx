@@ -418,11 +418,14 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         setMatchedStudent(null);
       }, 4000);
     } catch (err: any) {
-      toast.error(err.message || "Not Successfully Time In");
+      const errMsg = err.message || "Not Successfully Time In";
+      toast.error(errMsg);
+      setWarningMessage(errMsg);
       setStatus('error');
       // Auto-reset after error so the terminal doesn't lock up
       setTimeout(() => {
         setStatus('idle');
+        setWarningMessage(null);
         setMatchedStudent(null);
       }, 4000);
     } finally {
@@ -614,12 +617,15 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         setCapturedImage(null);
       }, 4000);
     } catch (err: any) {
-      toast.error(err.message || "Not Successfully Time In");
+      const errMsg = err.message || "Not Successfully Time In";
+      toast.error(errMsg);
+      setWarningMessage(errMsg);
       setStatus('error');
       
       // Auto-reset after error so the terminal doesn't lock up
       setTimeout(() => {
         setStatus('idle');
+        setWarningMessage(null);
         setMatchedStudent(null);
         setCapturedImage(null);
       }, 4000);
