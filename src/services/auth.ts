@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { headers } from 'next/headers';
+import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js';
 
 /**
  * Auth Service
@@ -53,26 +54,48 @@ export async function signUpWithID(
   courseYear?: string
 ) {
   try {
-    const client = await createClient();
+    // Create Supabase Admin client using Service Role Key to bypass signup rate limits
+    const adminClient = createSupabaseAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
     
     // Sanitize ID for email: remove non-alphanumeric and use standard domain
     const sanitizedId = id.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const email = `u${sanitizedId}@student.com`;
 
-    const { data, error } = await client.auth.signUp({
+    // Create the user bypassing standard rate limits and auto-confirming email
+    const { data, error } = await adminClient.auth.admin.createUser({
       email,
       password: id,
-      options: {
-        data: {
-          role,
-          full_name: name,
-          student_id: id,
-          course_year: courseYear,
-        }
+      email_confirm: true,
+      user_metadata: {
+        role,
+        full_name: name,
+        student_id: id,
+        course_year: courseYear,
       }
     });
 
     if (error) return { error: error.message };
+
+    // Perform a silent login using standard client to establish cookies/sessions
+    const client = await createClient();
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email,
+      password: id,
+    });
+
+    if (signInError) {
+      return { error: `Account created, but auto-login failed: ${signInError.message}` };
+    }
+
     return { success: true, user: data.user };
   } catch (err: any) {
     return { error: err.message || 'An unknown error occurred' };
