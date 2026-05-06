@@ -207,7 +207,6 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
       ]
     : [
         { id: "status", label: "Dashboard", icon: Activity },
-        { id: "terminal", label: "Facial Attendance", icon: ScanFace },
         { id: "join", label: profile?.last_room_id ? "Join Another Room" : "Join Room", icon: LogIn },
       ];
 
@@ -378,94 +377,83 @@ export function DashboardShell({ profiles, user, profile, repos }: DashboardShel
           </TabsContent>
         ) : null}
 
-        {/* Terminal Tab (Shared for Admin and Student) */}
-        {profile?.role === 'admin' || profile?.role === 'student' ? (
+        {/* Admin: Terminal Tab */}
+        {profile?.role === 'admin' ? (
           <TabsContent value="terminal" className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-            {profile?.role === 'admin' ? (
-              <>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-semibold text-foreground">Facial Attendance</h2>
-                    <p className="text-sm text-muted-foreground">Global biometric scanner for real-time attendance.</p>
-                  </div>
-                  <button 
-                    onClick={() => setIsSelectingRoom(!isSelectingRoom)}
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-primary/10 text-primary hover:bg-primary/20 rounded-xl border border-primary/20 transition-all group shrink-0"
-                  >
-                    <DoorOpen className="w-4 h-4" />
-                    {selectedTerminalRoom ? "Switch Room" : "Select Room"}
-                  </button>
-                </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-2xl font-semibold text-foreground">Facial Attendance</h2>
+                <p className="text-sm text-muted-foreground">Global biometric scanner for real-time attendance.</p>
+              </div>
+              <button 
+                onClick={() => setIsSelectingRoom(!isSelectingRoom)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest bg-primary/10 text-primary hover:bg-primary/20 rounded-xl border border-primary/20 transition-all group shrink-0"
+              >
+                <DoorOpen className="w-4 h-4" />
+                {selectedTerminalRoom ? "Switch Room" : "Select Room"}
+              </button>
+            </div>
 
-                {isSelectingRoom || !selectedTerminalRoom ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                    {adminRooms.length === 0 ? (
-                      <Card className="col-span-full bg-card/20 border-dashed border-border/60 py-12 rounded-3xl">
-                        <div className="flex flex-col items-center justify-center text-center p-6">
-                          <DoorOpen className="w-12 h-12 text-muted-foreground/20 mb-4" />
-                          <p className="text-sm font-black uppercase tracking-widest">No Rooms Available</p>
-                          <button onClick={() => setActiveTab("rooms")} className="text-xs text-primary mt-2 hover:underline">Create one now</button>
-                        </div>
-                      </Card>
-                    ) : (
-                      adminRooms.map((room) => (
-                        <Card 
-                          key={room.id} 
-                          className={cn(
-                            "group cursor-pointer relative overflow-hidden bg-card/30 border-border/50 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full",
-                            selectedTerminalRoom === room.id 
-                              ? "border-primary/60 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)] ring-2 ring-primary/20 scale-[1.02]" 
-                              : "hover:border-primary/40 hover:scale-[1.01]"
-                          )}
-                          onClick={() => {
-                            setSelectedTerminalRoom(room.id)
-                            setIsSelectingRoom(false)
-                          }}
-                        >
-                          {/* Status Indicator Bar */}
-                          <div className={cn(
-                            "absolute top-0 left-0 w-full h-1.5 transition-all duration-500",
-                            room.is_active ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-transparent"
-                          )} />
-                          
-                          <CardHeader className="p-8 relative z-10">
-                            <div className="space-y-3">
-                              <div className="space-y-1">
-                                <p className="text-[8px] font-black uppercase tracking-[0.3em] text-primary/60 italic leading-none">Terminal Room</p>
-                                <CardTitle className="text-2xl font-black uppercase italic truncate tracking-tight">{room.name}</CardTitle>
-                                <p className="text-xs font-bold text-muted-foreground/80 truncate leading-tight">{room.event_name || "Regular Session"}</p>
-                              </div>
-                              
-                              <div className="flex items-center gap-2 pt-2">
-                                 <div className={cn(
-                                   "w-2 h-2 rounded-full",
-                                   room.is_active ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-muted-foreground/20"
-                                 )} />
-                                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
-                                   {room.is_active ? "Live Session" : "Standby"}
-                                 </span>
-                              </div>
-                            </div>
-                          </CardHeader>
-                        </Card>
-                      ))
-                    )}
-                  </div>
+            {isSelectingRoom || !selectedTerminalRoom ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                {adminRooms.length === 0 ? (
+                  <Card className="col-span-full bg-card/20 border-dashed border-border/60 py-12 rounded-3xl">
+                    <div className="flex flex-col items-center justify-center text-center p-6">
+                      <DoorOpen className="w-12 h-12 text-muted-foreground/20 mb-4" />
+                      <p className="text-sm font-black uppercase tracking-widest">No Rooms Available</p>
+                      <button onClick={() => setActiveTab("rooms")} className="text-xs text-primary mt-2 hover:underline">Create one now</button>
+                    </div>
+                  </Card>
                 ) : (
-                  <FacialAttendanceTerminal 
-                    roomId={selectedTerminalRoom} 
-                    userId={user.id}
-                    userName={profile?.full_name || "Administrator"}
-                    isGlobal 
-                  />
+                  adminRooms.map((room) => (
+                    <Card 
+                      key={room.id} 
+                      className={cn(
+                        "group cursor-pointer relative overflow-hidden bg-card/30 border-border/50 backdrop-blur-md rounded-[2.5rem] transition-all duration-500 shadow-xl flex flex-col h-full",
+                        selectedTerminalRoom === room.id 
+                          ? "border-primary/60 shadow-[0_0_30px_-5px_rgba(59,130,246,0.2)] ring-2 ring-primary/20 scale-[1.02]" 
+                          : "hover:border-primary/40 hover:scale-[1.01]"
+                      )}
+                      onClick={() => {
+                        setSelectedTerminalRoom(room.id)
+                        setIsSelectingRoom(false)
+                      }}
+                    >
+                      {/* Status Indicator Bar */}
+                      <div className={cn(
+                        "absolute top-0 left-0 w-full h-1.5 transition-all duration-500",
+                        room.is_active ? "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" : "bg-transparent"
+                      )} />
+                      
+                      <CardHeader className="p-8 relative z-10">
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <p className="text-[8px] font-black uppercase tracking-[0.3em] text-primary/60 italic leading-none">Terminal Room</p>
+                            <CardTitle className="text-2xl font-black uppercase italic truncate tracking-tight">{room.name}</CardTitle>
+                            <p className="text-xs font-bold text-muted-foreground/80 truncate leading-tight">{room.event_name || "Regular Session"}</p>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 pt-2">
+                             <div className={cn(
+                               "w-2 h-2 rounded-full",
+                               room.is_active ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-muted-foreground/20"
+                             )} />
+                             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                               {room.is_active ? "Live Session" : "Standby"}
+                             </span>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  ))
                 )}
-              </>
+              </div>
             ) : (
               <FacialAttendanceTerminal 
-                roomId={profile?.last_room_id} 
+                roomId={selectedTerminalRoom} 
                 userId={user.id}
-                userName={profile?.full_name || "Student"}
-                isGlobal={false} 
+                userName={profile?.full_name || "Administrator"}
+                isGlobal 
               />
             )}
           </TabsContent>
