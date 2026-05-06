@@ -62,8 +62,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const [faceDetected, setFaceDetected] = useState(false);
   const [autoTriggerProgress, setAutoTriggerProgress] = useState(0);
   const [matchedStudent, setMatchedStudent] = useState<any>(null);
-  const [allParticipants, setAllParticipants] = useState<any[]>([]);
-  const [allRegisteredStudents, setAllRegisteredStudents] = useState<any[]>([]);
+  const allParticipantsRef = useRef<any[]>([]);
+  const [allParticipants, _setAllParticipants] = useState<any[]>([]);
+  const setAllParticipants = (val: any[]) => {
+    allParticipantsRef.current = val;
+    _setAllParticipants(val);
+  };
+
+  const allRegisteredStudentsRef = useRef<any[]>([]);
+  const [allRegisteredStudents, _setAllRegisteredStudents] = useState<any[]>([]);
+  const setAllRegisteredStudents = (val: any[]) => {
+    allRegisteredStudentsRef.current = val;
+    _setAllRegisteredStudents(val);
+  };
   const [currentUserEmbedding, setCurrentUserEmbedding] = useState<any>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [showFlash, setShowFlash] = useState(false);
@@ -199,14 +210,14 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
           
           if (!isProcessingRef.current && statusRef.current === 'idle' && isApproved !== false) {
             try {
-              let targetEmbeddings = isGlobal ? allRegisteredStudents : (currentUserEmbedding ? [currentUserEmbedding] : []);
+              let targetEmbeddings = isGlobal ? allRegisteredStudentsRef.current : (currentUserEmbedding ? [currentUserEmbedding] : []);
               
               if (targetEmbeddings.length > 0) {
                 let priorityMatch = null;
                 let priorityDistance = 1.0;
                 
-                if (isGlobal && allParticipants.length > 0) {
-                  for (const p of allParticipants) {
+                if (isGlobal && allParticipantsRef.current.length > 0) {
+                  for (const p of allParticipantsRef.current) {
                     const emb = p.parsed_embedding;
                     if (!emb || detection.descriptor.length !== emb.length) continue;
                     const d = getDistance(detection.descriptor, emb);
