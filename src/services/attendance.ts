@@ -454,8 +454,17 @@ export async function getStudentFinesSummary(studentId: string) {
 
   const attended = attendance.map(a => {
     const rawEventName = a.rooms?.event_name || a.rooms?.name || "Regular Session";
+    const sessionLabel = a.session === 'AM' ? 'Morning' : (a.session === 'PM' ? 'Afternoon' : '');
     const isHalfDay = !a.time_out;
-    const eventName = isHalfDay ? `${rawEventName} (Half Day)` : rawEventName;
+    
+    let eventName = rawEventName;
+    if (sessionLabel) {
+      eventName = `${eventName} (${sessionLabel})`;
+    }
+    if (isHalfDay) {
+      eventName = `${eventName} (Half Day)`;
+    }
+
     const roomFine = a.rooms?.am_fine_amount || a.rooms?.pm_fine_amount || 50;
     const calculatedFines = isHalfDay ? (Math.max(a.fines || 0, roomFine) / 2) : (a.fines || 0);
 
