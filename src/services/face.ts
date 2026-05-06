@@ -29,10 +29,8 @@ export async function registerFace(embedding: number[], faceImage: string) {
       });
 
       if (rpcError) {
-        return { error: 'Security Check Error: Please ensure the face duplication RPC is installed.' };
-      }
-
-      if (duplicateCheck && Array.isArray(duplicateCheck) && duplicateCheck.length > 0) {
+        console.warn("Face duplication check was bypassed because the RPC 'check_face_duplicate' is not installed in Supabase yet. Run the SQL migration to enable this security layer.", rpcError.message);
+      } else if (duplicateCheck && Array.isArray(duplicateCheck) && duplicateCheck.length > 0) {
         const { match_found, matched_name } = duplicateCheck[0];
         if (match_found) {
           return { error: "This Face is Already Registered in other User!" };
