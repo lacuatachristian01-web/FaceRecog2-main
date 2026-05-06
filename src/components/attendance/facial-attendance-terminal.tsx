@@ -40,8 +40,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const isProcessingRef = useRef(false);
+  const [isProcessing, _setIsProcessing] = useState(false);
+  const setIsProcessing = (val: boolean) => {
+    isProcessingRef.current = val;
+    _setIsProcessing(val);
+  };
+
+  const statusRef = useRef<'idle' | 'success' | 'error'>('idle');
+  const [status, _setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const setStatus = (val: 'idle' | 'success' | 'error') => {
+    statusRef.current = val;
+    _setStatus(val);
+  };
   const [actionMessage, setActionMessage] = useState("");
   const [todayStatus, setTodayStatus] = useState<any>(null);
   const [currentSession, setCurrentSession] = useState<'AM' | 'PM'>('AM');
@@ -164,7 +175,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     let detectionTimeout: NodeJS.Timeout;
 
     const runDetection = async () => {
-      if (!videoRef.current || !canvasRef.current || !isStreaming || !isModelLoaded || isProcessing) {
+      if (!videoRef.current || !canvasRef.current || !isStreaming || !isModelLoaded || isProcessingRef.current) {
         detectionTimeout = setTimeout(runDetection, 100);
         return;
       }
@@ -186,7 +197,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         if (detection) {
           setFaceDetected(true);
           
-          if (!isProcessing && status === 'idle' && isApproved !== false) {
+          if (!isProcessingRef.current && statusRef.current === 'idle' && isApproved !== false) {
             try {
               let targetEmbeddings = isGlobal ? allRegisteredStudents : (currentUserEmbedding ? [currentUserEmbedding] : []);
               
