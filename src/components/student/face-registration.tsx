@@ -284,6 +284,7 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       });
       const errorMessage = err?.message || "Failed to update profile";
       toast.error(errorMessage);
+      setRegistrationError(errorMessage);
       setHasFailedRegistration(true);
     } finally {
       setIsRegistering(false);
