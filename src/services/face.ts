@@ -121,20 +121,62 @@ export async function matchFace(embedding: number[], threshold: number = 0.4) {
   try {
     const supabase = await createClient();
     
-    // Call the high-speed match_face RPC
-    const { data, error } = await supabase.rpc('match_face', {
-      query_embedding: embedding,
-      match_threshold: 1 - threshold, // Convert distance threshold to similarity
-      match_count: 1
-    });
+    // 1. Fetch all registered profiles with standard SELECT query (extremely reliable, never freezes)
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, face_embedding, face_image')
+      .not('face_embedding', 'is', null);
 
-    if (error) {
-      console.error("RPC Match Error:", error);
-      return { error: error.message };
+    if (profilesError) {
+      console.error("matchFace database query error:", profilesError);
+      return { error: profilesError.message };
     }
 
-    if (data && data.length > 0) {
-      return { data: data[0] };
+    let bestMatch: any = null;
+    let minDistance = 1.0;
+
+    if (profiles && profiles.length > 0) {
+      for (const profile of profiles) {
+        let storedEmbedding: number[] = [];
+        if (typeof profile.face_embedding === 'string') {
+          try {
+            storedEmbedding = JSON.parse(profile.face_embedding);
+          } catch (e) {
+            storedEmbedding = profile.face_embedding.replace(/[\[\]]/g, '').split(',').map(Number);
+          }
+        } else if (Array.isArray(profile.face_embedding)) {
+          storedEmbedding = profile.face_embedding;
+        }
+
+        if (storedEmbedding && storedEmbedding.length === 128) {
+          // 2. Calculate high-precision 128-dimensional Euclidean distance
+          let sumSq = 0;
+          for (let i = 0; i < 128; i++) {
+            if (typeof embedding[i] === 'number' && typeof storedEmbedding[i] === 'number') {
+              sumSq += Math.pow(embedding[i] - storedEmbedding[i], 2);
+            }
+          }
+          const distance = Math.sqrt(sumSq);
+
+          // Find the profile with the smallest biometric distance (best match)
+          if (distance < minDistance) {
+            minDistance = distance;
+            bestMatch = {
+              id: profile.id,
+              full_name: profile.full_name,
+              face_image: profile.face_image,
+              distance: distance
+            };
+          }
+        }
+      }
+    }
+
+    // Convert similarity threshold to strict Euclidean distance limit (0.6 -> 0.40 distance limit)
+    const finalDistanceLimit = threshold > 0.5 ? (1 - threshold) : threshold;
+
+    if (bestMatch && bestMatch.distance < finalDistanceLimit) {
+      return { data: bestMatch };
     }
 
     return { data: null };
