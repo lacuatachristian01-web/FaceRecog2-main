@@ -18,6 +18,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { registerFace } from "@/services/face";
+import { signOut } from "@/services/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -452,8 +453,9 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
                 </Button>
 
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     stopVideo();
+                    await signOut();
                     router.push('/login');
                   }}
                   variant="outline"
