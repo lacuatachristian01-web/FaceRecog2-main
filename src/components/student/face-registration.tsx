@@ -113,7 +113,6 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
   };
 
   const handleAutoCaptureRef = useRef<((detection: any) => Promise<void>) | null>(null);
-  handleAutoCaptureRef.current = handleAutoCapture;
 
   const isRegisteringRef = useRef(false);
   isRegisteringRef.current = isRegistering;
@@ -238,6 +237,8 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
       setIsRegistering(false);
     }
   };
+
+  handleAutoCaptureRef.current = handleAutoCapture;
 
   const handleVideoRef = (node: HTMLVideoElement | null) => {
     videoRef.current = node;
