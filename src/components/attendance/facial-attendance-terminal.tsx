@@ -575,6 +575,13 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     } catch (err: any) {
       toast.error(err.message || "Not Successfully Time In");
       setStatus('error');
+      
+      // Auto-reset after error so the terminal doesn't lock up
+      setTimeout(() => {
+        setStatus('idle');
+        setMatchedStudent(null);
+        setCapturedImage(null);
+      }, 4000);
     } finally {
       setIsProcessing(false);
     }
