@@ -452,13 +452,20 @@ export async function getStudentFinesSummary(studentId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const attended = attendance.map(a => ({
-    id: a.id,
-    event_name: a.rooms?.event_name || a.rooms?.name || "Regular Session",
-    time_in: a.time_in,
-    time_out: a.time_out,
-    fines: a.fines || 0
-  }));
+  const attended = attendance.map(a => {
+    const rawEventName = a.rooms?.event_name || a.rooms?.name || "Regular Session";
+    const isHalfDay = !a.time_out;
+    const eventName = isHalfDay ? `${rawEventName} (Half Day)` : rawEventName;
+    const calculatedFines = isHalfDay ? (a.fines ? a.fines / 2 : 0) : (a.fines || 0);
+
+    return {
+      id: a.id,
+      event_name: eventName,
+      time_in: a.time_in,
+      time_out: a.time_out,
+      fines: calculatedFines
+    };
+  });
 
   const attendedRoomIds = new Set(attendance.map(a => a.room_id));
   
