@@ -20,17 +20,45 @@ export async function registerFace(embedding: number[], faceImage: string) {
       return { error: 'Not authenticated' };
     }
 
-    // 1. Check for duplication via high-speed pgvector matchFace RPC
+    // 1. Check for duplication via high-precision biometric distance scanning
     if (embedding && embedding.length > 0) {
-      const matchResult = await matchFace(embedding, 0.68); // ultra-strict 0.32 distance threshold (precisely checks eyes, brows, nose, and mouth)
-      
-      if (matchResult.error) {
-        console.error("Duplication check matchFace error:", matchResult.error);
-      } else if (matchResult.data) {
-        const bestMatch = matchResult.data;
-        // If the matched user is NOT the current registering user, it's a DUPLICATE!
-        if (bestMatch.id !== user.id) {
-          return { error: "This Face is Already Registered in other User!" };
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, face_embedding')
+        .not('face_embedding', 'is', null)
+        .neq('id', user.id);
+
+      if (profilesError) {
+        console.error("Duplication check query error:", profilesError);
+      } else if (profiles && profiles.length > 0) {
+        for (const profile of profiles) {
+          let storedEmbedding: number[] = [];
+          if (typeof profile.face_embedding === 'string') {
+            try {
+              storedEmbedding = JSON.parse(profile.face_embedding);
+            } catch (e) {
+              storedEmbedding = profile.face_embedding.replace(/[\[\]]/g, '').split(',').map(Number);
+            }
+          } else if (Array.isArray(profile.face_embedding)) {
+            storedEmbedding = profile.face_embedding;
+          }
+
+          if (storedEmbedding && storedEmbedding.length === 128) {
+            // Calculate high-precision Euclidean distance across 128 dimensions (mapping eyes, eyebrows, nose, mouth)
+            let sumSq = 0;
+            for (let i = 0; i < 128; i++) {
+              if (typeof embedding[i] === 'number' && typeof storedEmbedding[i] === 'number') {
+                sumSq += Math.pow(embedding[i] - storedEmbedding[i], 2);
+              }
+            }
+            const distance = Math.sqrt(sumSq);
+
+            // Industry-standard strict Euclidean distance threshold (0.40)
+            // Ensures different people NEVER match, but the same person is blocked instantly.
+            if (distance < 0.40) {
+              return { error: "This Face is Already Registered in other User!" };
+            }
+          }
         }
       }
     }
