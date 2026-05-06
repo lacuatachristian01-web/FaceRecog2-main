@@ -59,6 +59,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   const detectionStartTime = useRef<number | null>(null);
   const [unrecognizedStartTime, setUnrecognizedStartTime] = useState<number | null>(null);
   const [scanningStage, setScanningStage] = useState<'capturing' | 'analyzing' | 'matching' | 'recording' | null>(null);
+  const [attendanceMode, setAttendanceMode] = useState<'auto' | 'in' | 'out'>('auto');
   const AUTO_TRIGGER_DELAY = 2000; // Increased to 2 seconds as requested
 
   useEffect(() => {
@@ -477,12 +478,46 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       // 2. Status check
       const result = await getTodayStatus(roomId, sId);
       const sStatus = result.data;
-      const type = !sStatus ? 'in' : 'out';
+      
+      let type: 'in' | 'out' = 'in';
+      if (attendanceMode === 'auto') {
+        type = !sStatus ? 'in' : 'out';
+      } else {
+        type = attendanceMode;
+      }
+      
+      // If enforcing Time In but already timed in
+      if (type === 'in' && sStatus) {
+        toast.info(`${sName}, you already Time In for ${currentSession}.`, {
+          id: `already-in-${sId}`
+        });
+        setCapturedImage(null);
+        return;
+      }
+      
+      // If enforcing Time Out but already timed out
+      if (type === 'out' && sStatus?.time_out) {
+        toast.info(`${sName}, you already Time Out for ${currentSession}.`, {
+          id: `already-out-${sId}`
+        });
+        setCapturedImage(null);
+        return;
+      }
+      
+      // If enforcing Time Out but hasn't timed in yet
+      if (type === 'out' && !sStatus) {
+        toast.error(`${sName}, you cannot Time Out without Timing In first!`, {
+          id: `no-timein-${sId}`
+        });
+        setCapturedImage(null);
+        return;
+      }
       
       if (type === 'out' && sStatus?.time_out) {
         toast.info(`${sName} has already completed today's session.`, {
           id: `session-done-${sId}`
         });
+        setCapturedImage(null);
         return;
       }
 
@@ -605,6 +640,42 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   )}
                 >
                   Afternoon
+                </button>
+              </div>
+              
+              <div className="flex items-center bg-muted/50 rounded-full p-1 border border-border mt-1">
+                <button 
+                  onClick={() => setAttendanceMode('auto')}
+                  className={cn(
+                    "px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full transition-all",
+                    attendanceMode === 'auto' 
+                      ? "bg-primary text-primary-foreground shadow-lg" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Auto
+                </button>
+                <button 
+                  onClick={() => setAttendanceMode('in')}
+                  className={cn(
+                    "px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full transition-all",
+                    attendanceMode === 'in' 
+                      ? "bg-emerald-500 text-white shadow-lg" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Time In
+                </button>
+                <button 
+                  onClick={() => setAttendanceMode('out')}
+                  className={cn(
+                    "px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full transition-all",
+                    attendanceMode === 'out' 
+                      ? "bg-rose-500 text-white shadow-lg" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Time Out
                 </button>
               </div>
               
