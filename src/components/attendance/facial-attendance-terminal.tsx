@@ -253,14 +253,14 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                   setAutoTriggerProgress(progress);
 
                   if (elapsed >= AUTO_TRIGGER_DELAY) {
-                    setIsProcessing(true);
-                    detectionStartTime.current = null;
-                    setAutoTriggerProgress(0);
-                    setShowFlash(true);
-                    setTimeout(() => setShowFlash(false), 150);
-                    
-                    // Trigger capture and perform the scanning on the photo
                     if (processCapturedAttendanceRef.current) {
+                      setIsProcessing(true);
+                      detectionStartTime.current = null;
+                      setAutoTriggerProgress(0);
+                      setShowFlash(true);
+                      setTimeout(() => setShowFlash(false), 150);
+                      
+                      // Trigger capture and perform the scanning on the photo
                       processCapturedAttendanceRef.current(currentVideo);
                     }
                   }
@@ -452,9 +452,7 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
     }
   };
 
-  useEffect(() => {
-    processCapturedAttendanceRef.current = processCapturedAttendance;
-  }, [processCapturedAttendance]);
+  processCapturedAttendanceRef.current = processCapturedAttendance;
 
   const processGlobalAttendance = async (sId: string, sName: string, photoStatus?: string | null) => {
     try {
