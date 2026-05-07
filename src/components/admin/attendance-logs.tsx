@@ -450,19 +450,19 @@ export function AttendanceLogs({ roomId, view }: AttendanceLogsProps) {
             className="space-y-8"
           >
             {/* Professional Student Admin Profile Header */}
-            <div className="bg-card border border-border/40 rounded-3xl p-6 md:p-8 shadow-md flex flex-col items-center justify-center text-center gap-4">
-              <div className="flex flex-col items-center gap-4">
+            <div className="bg-card border border-border/40 rounded-3xl p-6 md:p-8 shadow-md flex flex-col items-center justify-center gap-6">
+              <div className="flex flex-col md:flex-row items-center justify-center gap-5 text-center md:text-left">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-primary font-black text-2xl border border-primary/20 shadow-inner">
                   {selectedStudent.full_name?.[0]}
                 </div>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-center gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                     <h2 className="text-2xl font-black tracking-tight text-foreground">{selectedStudent.full_name}</h2>
                     <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-black text-[9px] uppercase tracking-wider rounded-full py-0.5 px-2.5">
                       Active Student
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                     <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-primary" /> Student ID: {selectedStudent.student_id}</span>
                     <span className="w-1 h-1 rounded-full bg-border" />
                     <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-primary" /> {selectedStudent.course_year}</span>
