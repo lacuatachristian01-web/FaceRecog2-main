@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getAdminDashboard, AttendanceRecord, deleteAttendanceRecord, getAbsentStudents, updateAttendanceRecord, getStudentFinesSummary, payStudentFines, restoreFinesSnapshot } from "@/services/attendance";
 import { getAllStudents } from "@/services/dashboard";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -20,6 +21,7 @@ interface AttendanceLogsProps {
 }
 
 export function AttendanceLogs({ roomId, view }: AttendanceLogsProps) {
+  const router = useRouter();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -387,9 +389,12 @@ export function AttendanceLogs({ roomId, view }: AttendanceLogsProps) {
                  >
                    View All Students
                  </Button>
-                 <button className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/50 hover:text-primary transition-colors italic">
-                   Back to Home
-                 </button>
+                  <button 
+                    onClick={() => router.push("/dashboard")}
+                    className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/50 hover:text-primary transition-colors italic cursor-pointer"
+                  >
+                    Back to Home
+                  </button>
               </CardFooter>
             </Card>
 
