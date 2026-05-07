@@ -390,7 +390,7 @@ export function AttendanceLogs({ roomId, view }: AttendanceLogsProps) {
                    View All Students
                  </Button>
                   <button 
-                    onClick={() => router.push("/dashboard")}
+                    onClick={() => window.location.href = "/dashboard"}
                     className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/50 hover:text-primary transition-colors italic cursor-pointer"
                   >
                     Back to Home
