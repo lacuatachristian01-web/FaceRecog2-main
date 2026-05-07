@@ -139,10 +139,13 @@ export function StudentAttendanceHistory({ studentId, profile, onUpdateFace }: S
           </div>
         ) : (
           filteredRooms.map((room) => {
-            const today = new Date().toISOString().split('T')[0];
+            const targetDateStr = room.event_date 
+              ? new Date(room.event_date).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0];
+              
             const record = history.find(h => 
               h.room_id === room.id && 
-              new Date(h.time_in).toISOString().split('T')[0] === today
+              new Date(h.time_in).toISOString().split('T')[0] === targetDateStr
             );
 
             return (
@@ -154,15 +157,26 @@ export function StudentAttendanceHistory({ studentId, profile, onUpdateFace }: S
               >
                 {/* Event Header */}
                 <div className="bg-gradient-to-r from-black to-[#121214] px-5 py-4 flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">
-                      {activeTab}
-                    </p>
+                  <div className="space-y-1.5 max-w-[70%]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] italic">
+                        {activeTab}
+                      </p>
+                      {record ? (
+                        <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 text-[8px] font-black uppercase tracking-widest rounded px-1.5 py-0.5 animate-pulse">
+                          Attended
+                        </span>
+                      ) : (
+                        <span className="bg-red-500/10 text-red-500 border border-red-500/30 text-[8px] font-black uppercase tracking-widest rounded px-1.5 py-0.5 animate-pulse">
+                          Not Attended
+                        </span>
+                      )}
+                    </div>
                     <h3 className="text-sm font-black text-white uppercase italic tracking-tight">
                       {room.name} {room.event_name ? `— ${room.event_name}` : ''}
                     </h3>
                   </div>
-                  <div className="flex flex-col items-end">
+                  <div className="flex flex-col items-end shrink-0">
                     <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Session Date</span>
                     <span className="text-[10px] font-bold text-white italic">
                       {room.event_date ? new Date(room.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Today'}
