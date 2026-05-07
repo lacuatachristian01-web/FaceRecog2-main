@@ -469,15 +469,6 @@ export function AttendanceLogs({ roomId, view }: AttendanceLogsProps) {
                   </div>
                 </div>
               </div>
-              
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedStudent(null)}
-                className="self-start md:self-auto h-12 px-6 rounded-xl border-border/80 hover:bg-muted/50 text-foreground transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider italic"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Return to Student Directory
-              </Button>
             </div>
 
             {/* Administrative KPI Metrics Row */}
