@@ -441,21 +441,27 @@ export async function getStudentFinesSummary(studentId: string) {
     .from('attendance')
     .select(`
       *,
-      rooms (name, event_name, event_date, am_fine_amount, pm_fine_amount)
+      rooms (*)
     `)
     .eq('student_id', studentId);
 
   if (aError) throw aError;
 
   // 3. Separate into attended and missed
-  // For missed: Any room joined where event_date <= today and no attendance record exists
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const attended = attendance.map(a => {
+  // We split the attendance table records:
+  // - Real attended records: time_in is NOT null
+  // - Explicit missed records: time_in IS null
+  const realAttendance = attendance.filter(a => a.time_in !== null);
+  const explicitMissed = attendance.filter(a => a.time_in === null);
+
+  const attended = realAttendance.map(a => {
     const rawEventName = a.rooms?.event_name || a.rooms?.name || "Regular Session";
     const sessionLabel = a.session === 'AM' ? 'Morning' : (a.session === 'PM' ? 'Afternoon' : '');
     const isHalfDay = !a.time_out;
+    const isWholeDayEvent = !!(a.rooms?.am_time_in_start && a.rooms?.pm_time_in_start);
     
     let eventName = rawEventName;
     if (sessionLabel) {
@@ -466,34 +472,190 @@ export async function getStudentFinesSummary(studentId: string) {
     }
 
     const roomFine = a.rooms?.am_fine_amount || a.rooms?.pm_fine_amount || 50;
-    const calculatedFines = isHalfDay ? (Math.max(a.fines || 0, roomFine) / 2) : (a.fines || 0);
+    // If fines has been explicitly updated in the database, respect that value. Otherwise calculate dynamic default.
+    const calculatedFines = a.fines !== null ? a.fines : (isHalfDay ? (roomFine / 2) : 0);
 
     return {
       id: a.id,
       event_name: eventName,
       time_in: a.time_in,
       time_out: a.time_out,
-      fines: calculatedFines
+      fines: calculatedFines,
+      is_whole_day: isWholeDayEvent
     };
   });
 
-  const attendedRoomIds = new Set(attendance.map(a => a.room_id));
+  // Track room IDs that have any attendance record (attended or explicit missed)
+  const recordedRoomIds = new Set(attendance.map(a => a.room_id));
   
-  const missed = (participations as any[])
+  // Dynamic missed sessions (participated rooms with event date < today, and NO attendance record yet)
+  const dynamicMissed = (participations as any[])
     .filter(p => {
       if (!p.rooms) return false;
       const eventDate = new Date(p.rooms.event_date);
-      // If event was in the past and no attendance record
-      return eventDate < today && !attendedRoomIds.has(p.room_id);
+      return eventDate < today && !recordedRoomIds.has(p.room_id);
     })
-    .map(p => ({
-      id: p.room_id,
-      event_name: p.rooms.event_name || p.rooms.name,
-      fines: 100 // Flat fine for missing an entire event
-    }));
+    .map(p => {
+      const isWholeDayEvent = !!(p.rooms.am_time_in_start && p.rooms.pm_time_in_start);
+      return {
+        id: p.room_id,
+        event_name: p.rooms.event_name || p.rooms.name,
+        fines: 100, // Flat fine for missing an entire event
+        is_whole_day: isWholeDayEvent,
+        is_explicit: false
+      };
+    });
+
+  // Explicit missed sessions (those that exist in the attendance table with time_in = null)
+  const mappedExplicitMissed = explicitMissed.map(a => {
+    const rawEventName = a.rooms?.event_name || a.rooms?.name || "Regular Session";
+    const isWholeDayEvent = !!(a.rooms?.am_time_in_start && a.rooms?.pm_time_in_start);
+    return {
+      id: a.id, // Use attendance record ID so it can be updated directly when paying
+      event_name: `${rawEventName} (Missed)`,
+      fines: a.fines !== null ? a.fines : 100,
+      is_whole_day: isWholeDayEvent,
+      is_explicit: true
+    };
+  });
+
+  // Combined missed sessions
+  const missed = [...dynamicMissed, ...mappedExplicitMissed];
 
   const totalFines = attended.reduce((sum, a) => sum + (a.fines || 0), 0) + 
                      missed.reduce((sum, m) => sum + (m.fines || 0), 0);
 
   return { attended, missed, totalFines };
+}
+
+export async function payStudentFines(studentId: string, amountPaid: number) {
+  const supabase = await createClient();
+  
+  // 1. Get the current summary of the student to know which records are attended and which are missed
+  const summary = await getStudentFinesSummary(studentId);
+  let remainingPayment = amountPaid;
+  
+  const attendanceSnapshot: { id: string, fines: number | null }[] = [];
+  const insertedRecordIds: string[] = [];
+  
+  // 2. Get all existing attendance records for the student
+  const { data: attendanceRecords, error: fetchError } = await supabase
+    .from('attendance')
+    .select(`
+      id, 
+      fines, 
+      time_in, 
+      time_out, 
+      room_id,
+      rooms (*)
+    `)
+    .eq('student_id', studentId);
+    
+  if (fetchError) throw fetchError;
+  
+  if (attendanceRecords && attendanceRecords.length > 0) {
+    for (const record of attendanceRecords) {
+      if (remainingPayment <= 0) break;
+      
+      // Determine current fine
+      let currentFine = 0;
+      if (record.fines !== null) {
+        currentFine = record.fines;
+      } else {
+        // Calculate dynamic fine
+        if (record.time_in === null) {
+          currentFine = 100;
+        } else if (record.time_out === null) {
+          const roomsObj = record.rooms as any;
+          const roomFine = roomsObj?.am_fine_amount || roomsObj?.pm_fine_amount || 50;
+          currentFine = roomFine / 2;
+        }
+      }
+      
+      if (currentFine > 0) {
+        // Capture original fines value
+        attendanceSnapshot.push({ id: record.id, fines: record.fines });
+        
+        if (remainingPayment >= currentFine) {
+          remainingPayment -= currentFine;
+          await supabase
+            .from('attendance')
+            .update({ fines: 0 })
+            .eq('id', record.id);
+        } else {
+          const newFine = currentFine - remainingPayment;
+          remainingPayment = 0;
+          await supabase
+            .from('attendance')
+            .update({ fines: newFine })
+            .eq('id', record.id);
+        }
+      }
+    }
+  }
+  
+  // 3. If there is still remaining payment, instantiate dynamic missed sessions (rooms) to record paid fines
+  if (remainingPayment > 0 && summary.missed && summary.missed.length > 0) {
+    for (const missedItem of summary.missed) {
+      if (remainingPayment <= 0) break;
+      if (missedItem.is_explicit) continue; // Already handled in the loop above
+      
+      const baseMissedFine = missedItem.fines || 100;
+      let fineToApply = baseMissedFine;
+      
+      if (remainingPayment >= baseMissedFine) {
+        remainingPayment -= baseMissedFine;
+        fineToApply = 0;
+      } else {
+        fineToApply = baseMissedFine - remainingPayment;
+        remainingPayment = 0;
+      }
+      
+      const { data: inserted, error: insertError } = await supabase
+        .from('attendance')
+        .insert({
+          student_id: studentId,
+          room_id: missedItem.id,
+          fines: fineToApply,
+          time_in: null,
+          time_out: null,
+          session: 'AM'
+        })
+        .select('id')
+        .single();
+        
+      if (!insertError && inserted) {
+        insertedRecordIds.push(inserted.id);
+      }
+    }
+  }
+  
+  return { success: true, snapshot: { attendanceSnapshot, insertedRecordIds } };
+}
+
+export async function restoreFinesSnapshot(snapshot: {
+  attendanceSnapshot: { id: string, fines: number | null }[],
+  insertedRecordIds: string[]
+}) {
+  const supabase = await createClient();
+  
+  // 1. Restore previous fines
+  if (snapshot.attendanceSnapshot && snapshot.attendanceSnapshot.length > 0) {
+    for (const item of snapshot.attendanceSnapshot) {
+      await supabase
+        .from('attendance')
+        .update({ fines: item.fines })
+        .eq('id', item.id);
+    }
+  }
+  
+  // 2. Delete inserted missed records
+  if (snapshot.insertedRecordIds && snapshot.insertedRecordIds.length > 0) {
+    await supabase
+      .from('attendance')
+      .delete()
+      .in('id', snapshot.insertedRecordIds);
+  }
+  
+  return { success: true };
 }
