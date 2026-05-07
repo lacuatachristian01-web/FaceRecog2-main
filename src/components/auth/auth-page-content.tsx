@@ -11,7 +11,13 @@ import {
   GraduationCap, 
   Briefcase,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Fingerprint,
+  Cpu,
+  ShieldCheck,
+  Database,
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { FaceRegistration } from '@/components/student/face-registration';
+import { Badge } from '@/components/ui/badge';
 
 export function AuthPageContent({ session }: { session?: any }) {
   const [mode, setMode] = useState<'login' | 'signup'>('signup'); // Default to signup as in image
@@ -27,7 +34,7 @@ export function AuthPageContent({ session }: { session?: any }) {
   const [courseYear, setCourseYear] = useState('');
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState<'admin' | 'student'>('student');
-  const [step, setStep] = useState<'info' | 'face'>('info');
+  const [step, setStep] = useState<'welcome' | 'info' | 'face'>('welcome');
   const router = useRouter();
 
   // Check for existing student session needing face registration
@@ -100,12 +107,164 @@ export function AuthPageContent({ session }: { session?: any }) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-foreground flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-black text-foreground flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden font-sans">
       {/* Background Subtle Gradient */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.05)_0%,transparent_70%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.06)_0%,transparent_70%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_40%,rgba(0,0,0,0.8)_100%)] pointer-events-none" />
 
       <AnimatePresence mode="wait">
-        {step === 'info' ? (
+        {step === 'welcome' ? (
+          <motion.div
+            key="welcome"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="w-full max-w-5xl space-y-12 relative z-10 py-6"
+          >
+            {/* Header Section */}
+            <div className="text-center space-y-4 max-w-2xl mx-auto">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.15 }}
+                className="inline-flex items-center gap-2 px-3 py-1 bg-blue-900/30 border border-blue-800/50 rounded-full text-[10px] md:text-xs font-bold text-blue-400 uppercase tracking-widest"
+              >
+                <Fingerprint size={12} className="text-blue-400 animate-pulse" />
+                Christian Dev Labs (CDL)
+              </motion.div>
+
+              <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-none">
+                FRM<span className="text-blue-500">AS</span>
+              </h1>
+              
+              <h2 className="text-lg md:text-xl font-bold text-zinc-300">
+                Facial Recognition Monitoring Attendance System
+              </h2>
+              
+              <p className="text-sm md:text-base text-zinc-400 leading-relaxed max-w-xl mx-auto">
+                A high-performance biometric ecosystem designed for educational and corporate environments to eliminate lost records and bookkeeping latency.
+              </p>
+            </div>
+
+            {/* Core User Profiles (Student / Admin Cards) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              {/* Student Portal Card */}
+              <motion.div
+                whileHover={{ y: -5, borderColor: "rgba(59, 130, 246, 0.4)" }}
+                transition={{ duration: 0.2 }}
+                className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6 space-y-4 backdrop-blur-sm shadow-xl shadow-black/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-blue-950/50 border border-blue-800/40 text-blue-400">
+                    <GraduationCap size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400/80">User Profile</span>
+                    <h3 className="text-xl font-black text-white">Student Portal</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2.5 text-sm text-zinc-400">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>Secure biometric signup & high-accuracy face enrollment</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>Hands-free terminal clock-in with instant recognition</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>Personal dashboard with real-time logs & history</span>
+                  </li>
+                </ul>
+              </motion.div>
+
+              {/* Admin Command Card */}
+              <motion.div
+                whileHover={{ y: -5, borderColor: "rgba(59, 130, 246, 0.4)" }}
+                transition={{ duration: 0.2 }}
+                className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6 space-y-4 backdrop-blur-sm shadow-xl shadow-black/50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-blue-950/50 border border-blue-800/40 text-blue-400">
+                    <Briefcase size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400/80">User Profile</span>
+                    <h3 className="text-xl font-black text-white">Admin Dashboard</h3>
+                  </div>
+                </div>
+                <ul className="space-y-2.5 text-sm text-zinc-400">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>Classrooms setup with custom AM/PM windows</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>One-click student biometric approvals panel</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-1">✓</span>
+                    <span>Real-time logs & auto-calculated fine tracking</span>
+                  </li>
+                </ul>
+              </motion.div>
+            </div>
+
+            {/* Core Tech Pillars */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
+              <div className="flex gap-3 p-4 rounded-xl border border-zinc-900 bg-zinc-950/20 items-center">
+                <div className="text-blue-500"><Cpu size={20} /></div>
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Biometrics Engineering</h4>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">High-throughput descriptor extraction</p>
+                </div>
+              </div>
+              <div className="flex gap-3 p-4 rounded-xl border border-zinc-900 bg-zinc-950/20 items-center">
+                <div className="text-blue-500"><ShieldCheck size={20} /></div>
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Type-Safe Security</h4>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">RLS-enforced data governance</p>
+                </div>
+              </div>
+              <div className="flex gap-3 p-4 rounded-xl border border-zinc-900 bg-zinc-950/20 items-center">
+                <div className="text-blue-500"><Database size={20} /></div>
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Zero-Latency Matching</h4>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Optimized Supabase pgvector</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Get Started Button */}
+            <div className="text-center pt-2">
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-block"
+              >
+                <Button
+                  onClick={() => setStep('info')}
+                  className="h-14 px-8 text-lg font-black rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 hover:from-blue-600 hover:to-blue-400 text-white shadow-2xl shadow-blue-500/20 border-none flex items-center gap-3 transition-all min-w-[200px]"
+                >
+                  Get Started
+                  <ArrowRight size={18} className="animate-pulse" />
+                </Button>
+              </motion.div>
+            </div>
+
+            {/* Technology Stack */}
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-6 border-t border-zinc-900 max-w-2xl mx-auto">
+              <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mr-2">Built With:</span>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 bg-zinc-950/50 py-1 px-2.5">Next.js 15</Badge>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 bg-zinc-950/50 py-1 px-2.5">Supabase</Badge>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 bg-zinc-950/50 py-1 px-2.5">Tailwind CSS 4</Badge>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 bg-zinc-950/50 py-1 px-2.5">Framer Motion 12</Badge>
+              <Badge variant="outline" className="border-zinc-800 text-zinc-400 bg-zinc-950/50 py-1 px-2.5">pgvector</Badge>
+            </div>
+          </motion.div>
+        ) : step === 'info' ? (
           <motion.div 
             key="info"
             initial={{ opacity: 0, y: 20 }}
@@ -113,6 +272,18 @@ export function AuthPageContent({ session }: { session?: any }) {
             exit={{ opacity: 0, y: -20 }}
             className="w-full max-w-[400px] space-y-10 relative z-10"
           >
+            {/* Back Button */}
+            <div className="absolute -top-12 left-0 z-20">
+              <button
+                type="button"
+                onClick={() => setStep('welcome')}
+                className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors py-2"
+              >
+                <ArrowLeft size={14} />
+                Back to Welcome
+              </button>
+            </div>
+
             {/* Header / Logo Section */}
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center tracking-tighter">
