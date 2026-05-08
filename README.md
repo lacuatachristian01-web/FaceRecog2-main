@@ -15,9 +15,13 @@ This system allows students to register their faces and record attendance by sim
 - **Analytics**: Auto-calculation of fines (₱50) and attendance events.
 
 #### 🎓 Student (GCash-Style Flow)
-- **Secure Authentication**: Sign up and log in via Name and ID.
+- **Secure Authentication**: Sign up and log in via Name and ID with robust session expiry safeguards.
 - **Biometric Enrollment**: Premium GCash-style registration with live mesh scanning, manual shutter, and precision cropping.
 - **Biometric Security**: Server-side duplication check prevents identity theft.
+- **Hands-Free Interactive Biometric Terminal**:
+  - **Unique Check-In/Out Protections**: Enforces exact single-entry Time In/Out logging per session.
+  - **Text-to-Speech Voice Guidance**: Synthesizes custom error alerts and confirmation announcements out loud (*"You already Time In"*, *"Time In Successful"*, etc.).
+  - **Scan-on-Demand Pause Mechanism**: Automatically freezes scanning upon a successful match, prompting with a **"Scan Other Student"** click to safely resume.
 - **Personal Dashboard**: View individual attendance history, current status, and accumulated fines.
 
 ---

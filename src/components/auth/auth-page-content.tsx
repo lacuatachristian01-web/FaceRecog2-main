@@ -300,7 +300,7 @@ export function AuthPageContent({ session }: { session?: any }) {
               <div className="text-center">
                 <h2 className="text-xl font-bold text-blue-600/90 tracking-tight">
                   {mode === 'signup' 
-                    ? (userRole === 'student' ? 'Step 1: Student Sign-Up' : 'Step 1: Admin Sign-Up')
+                    ? (userRole === 'student' ? 'Student Sign-Up' : 'Admin Sign-Up')
                     : (userRole === 'student' ? 'Student Log In' : 'Admin Log In')
                   }
                 </h2>

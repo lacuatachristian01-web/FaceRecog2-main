@@ -383,14 +383,19 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
   }, [isStreaming, stream]);
 
   const processAttendance = async (type: 'in' | 'out') => {
-    // Check if already complete
-    if (type === 'out' && todayStatus?.time_out) {
-      toast.info("Your attendance session is already complete for today.");
-      setIsProcessing(false);
-      return;
-    }
-
     try {
+      if (type === 'in' && todayStatus) {
+        throw new Error("You already Time In");
+      }
+      
+      if (type === 'out' && !todayStatus) {
+        throw new Error("Please Time In first");
+      }
+      
+      if (type === 'out' && todayStatus?.time_out) {
+        throw new Error("You already Time Out");
+      }
+
       if (type === 'in') {
         const result = await timeIn(roomId, userId);
         if (result.error) throw new Error(result.error);
@@ -412,16 +417,32 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       toast.success(type === 'in' ? "Time In recorded" : "Time Out recorded");
       fetchStatus();
       
-      // Auto-reset after success (faster 2-second throughput)
-      setTimeout(() => {
-        setStatus('idle');
-        setMatchedStudent(null);
-      }, 2000);
+      // Stopped auto-reset on success to show 'Scan Other Student' button
     } catch (err: any) {
       const errMsg = err.message || "Not Successfully Time In";
       toast.error(errMsg);
       setWarningMessage(errMsg);
       setStatus('error');
+
+      // Speak the error message
+      let speakMsg = "Error occurred";
+      if (errMsg.toLowerCase().includes("already time in")) {
+        speakMsg = "You already Time In";
+      } else if (errMsg.toLowerCase().includes("already time out")) {
+        speakMsg = "You already Time Out";
+      } else if (errMsg.toLowerCase().includes("please time in first") || errMsg.toLowerCase().includes("cannot time out without timing in")) {
+        speakMsg = "Please Time In first";
+      } else {
+        speakMsg = errMsg;
+      }
+      
+      try {
+        const utterance = new SpeechSynthesisUtterance(speakMsg);
+        window.speechSynthesis.speak(utterance);
+      } catch (speechErr) {
+        console.warn("Speech synthesis failed:", speechErr);
+      }
+
       // Auto-reset after error so the terminal doesn't lock up (faster 2-second reset)
       setTimeout(() => {
         setStatus('idle');
@@ -494,7 +515,12 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
         } else {
           // If in room mode, verify the match is actually the intended user
           if (bestMatch.id === userId) {
-            const type = !todayStatus ? 'in' : 'out';
+            let type: 'in' | 'out' = 'in';
+            if (attendanceMode === 'auto') {
+              type = !todayStatus ? 'in' : 'out';
+            } else {
+              type = attendanceMode;
+            }
             await processAttendance(type);
           } else {
             toast.error("Not Successfully Time In: Face does not match current user");
@@ -610,17 +636,33 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
       setStatus('success');
       toast.success(`${type === 'in' ? "Time In Successfully" : "Time Out Successfully"}: ${sName}`);
       
-      // Auto-reset after success for global mode (faster 2-second throughput)
-      setTimeout(() => {
-        setStatus('idle');
-        setMatchedStudent(null);
-        setCapturedImage(null);
-      }, 2000);
+      // Stopped auto-reset on success to show 'Scan Other Student' button
     } catch (err: any) {
       const errMsg = err.message || "Not Successfully Time In";
       toast.error(errMsg);
       setWarningMessage(errMsg);
       setStatus('error');
+
+      // Speak the error message
+      let speakMsg = "Error occurred";
+      if (errMsg.toLowerCase().includes("already time in")) {
+        speakMsg = "You already Time In";
+      } else if (errMsg.toLowerCase().includes("already time out")) {
+        speakMsg = "You already Time Out";
+      } else if (errMsg.toLowerCase().includes("cannot time out without timing in") || errMsg.toLowerCase().includes("please time in first")) {
+        speakMsg = "Please Time In first";
+      } else if (errMsg.toLowerCase().includes("is not registered in this room")) {
+        speakMsg = "Not registered in this room";
+      } else {
+        speakMsg = errMsg;
+      }
+      
+      try {
+        const utterance = new SpeechSynthesisUtterance(speakMsg);
+        window.speechSynthesis.speak(utterance);
+      } catch (speechErr) {
+        console.warn("Speech synthesis failed:", speechErr);
+      }
       
       // Auto-reset after error so the terminal doesn't lock up (faster 2-second reset)
       setTimeout(() => {
@@ -1092,6 +1134,17 @@ export function FacialAttendanceTerminal({ roomId, userId, userName, isGlobal = 
                         </div>
                       </div>
                     )}
+
+                    <Button 
+                      onClick={() => {
+                        setStatus('idle');
+                        setMatchedStudent(null);
+                        setCapturedImage(null);
+                      }}
+                      className="w-full mt-8 h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Scan Other Student
+                    </Button>
                   </Card>
                 </motion.div>
               )}

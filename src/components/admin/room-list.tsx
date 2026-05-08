@@ -45,8 +45,8 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
   const [isActive, setIsActive] = useState(true);
   
   // Fine Amounts
-  const [amFineAmount, setAmFineAmount] = useState(50);
-  const [pmFineAmount, setPmFineAmount] = useState<number>(50);
+  const [amFineAmount, setAmFineAmount] = useState<string | number>(50);
+  const [pmFineAmount, setPmFineAmount] = useState<string | number>(50);
   const [isToggling, setIsToggling] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -118,8 +118,8 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
           newEventDate,
           newEventType,
           editingRoom.id,
-          amFineAmount,
-          pmFineAmount,
+          Number(amFineAmount),
+          Number(pmFineAmount),
           isActive
         );
 
@@ -144,8 +144,8 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
           newEventDate,
           newEventType,
           undefined,
-          amFineAmount,
-          pmFineAmount,
+          Number(amFineAmount),
+          Number(pmFineAmount),
           isActive
         );
 
@@ -449,7 +449,11 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
                           type="number" 
                           step="0.01"
                           value={amFineAmount}
-                          onChange={(e) => setAmFineAmount(Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const cleaned = val.replace(/^0+([1-9])/, '$1').replace(/^0+$/, '0');
+                            setAmFineAmount(cleaned);
+                          }}
                           className="h-14 rounded-xl bg-background/60 border-border/40 focus:border-orange-500/40 focus:ring-orange-500/5 transition-all pl-10 pr-5 font-bold shadow-inner"
                         />
                       </div>
@@ -502,7 +506,11 @@ export function RoomList({ view, initialEditingRoom, onEdit }: { view?: string |
                           type="number" 
                           step="0.01"
                           value={pmFineAmount}
-                          onChange={(e) => setPmFineAmount(Number(e.target.value))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const cleaned = val.replace(/^0+([1-9])/, '$1').replace(/^0+$/, '0');
+                            setPmFineAmount(cleaned);
+                          }}
                           className="h-14 rounded-xl bg-background/60 border-border/40 focus:border-blue-500/40 focus:ring-blue-500/5 transition-all pl-10 pr-5 font-bold shadow-inner"
                         />
                       </div>

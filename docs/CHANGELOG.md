@@ -2,6 +2,23 @@
 
 All notable changes to the **Facial Automated Attendance** project will be documented in this file.
 
+## [2026-05-08] - Unique Facial Attendance Protections & Interactive Scan Control
+
+### Added
+- **Unique Facial Attendance Protections**: Enforced precise state checking to prevent redundant actions:
+  - Students are restricted from timing in multiple times for the same session.
+  - Students cannot time out without a matching time-in log.
+  - Students are restricted from timing out multiple times.
+- **Interactive Scan Control**:
+  - The real-time camera scanning loop now automatically pauses on a successful match, allowing students to securely read their check-in/out status card.
+  - Added a premium **"Scan Other Student"** button inside the success verified modal to let users manually resume biometric scanning.
+- **Aural (Text-To-Speech) Feedback**: Embedded HTML5 Text-to-Speech audio speaking for error alerts (*"You already Time In"*, *"You already Time Out"*, *"Please Time In first"*).
+
+### Fixed
+- **Biometric Registration Latency & Expired Sessions**: Resolved webcam freezing loops during expired cookies, providing a safe, direct **"Log In Again"** auth redirection.
+- **Form UX (No Leading Zeros)**: Stripped leading zeros from the fine inputs in the Admin Room Manager while maintaining decimal point support (e.g. typing `100` instead of `0100`).
+- **Tab Selection Synchronization**: Aligned Individual Room Mode with selected screen tabs (Time In/Time Out/Auto) to ensure precise biometric logging.
+
 ## [2026-05-05] - Room Management & Terminal UX Hardening
 
 ### Added

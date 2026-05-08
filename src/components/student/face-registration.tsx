@@ -830,7 +830,44 @@ export function FaceRegistration({ onSuccess, initialMode, initialImage, isRepla
               </div>
 
               <div className="flex flex-col gap-4 w-full">
-                {hasFailedRegistration && registrationError?.toLowerCase().includes("already registered") ? (
+                {hasFailedRegistration && (registrationError?.toLowerCase().includes("session expired") || registrationError?.toLowerCase().includes("log in again") || registrationError?.toLowerCase().includes("authenticated")) ? (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full space-y-6"
+                  >
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden group">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-red-500/20 flex items-center justify-center shrink-0">
+                          <AlertTriangle className="w-5 h-5 text-red-500" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-black text-white uppercase tracking-wider italic">Session Expired</h3>
+                          <p className="text-[11px] text-zinc-400 font-medium leading-relaxed">
+                            {registrationError}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={async () => {
+                        stopVideo();
+                        try {
+                          await signOut();
+                        } catch (e) {
+                          console.error("Signout error:", e);
+                        }
+                        router.push('/login');
+                        window.location.reload();
+                      }}
+                      className="w-full h-16 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-lg uppercase italic tracking-tighter shadow-xl shadow-blue-900/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Log In Again
+                    </Button>
+                  </motion.div>
+                ) : hasFailedRegistration && registrationError?.toLowerCase().includes("already registered") ? (
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}

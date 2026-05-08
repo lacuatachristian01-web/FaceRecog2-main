@@ -13,6 +13,7 @@ export async function registerFace(embedding: number[], faceImage: string) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError) {
+      console.error("registerFace authentication error details:", authError);
       return { error: 'Authentication session expired. Please log in again.' };
     }
 
